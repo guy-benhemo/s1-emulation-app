@@ -29,9 +29,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify analytics configuration
+        shell: pwsh
+        env:
+          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+        run: |
+          if (-not $env:POSTHOG_PROJECT_TOKEN) {
+            throw "Repository variable POSTHOG_PROJECT_TOKEN is required for measured Windows builds."
+          }
+
       - name: Build Tauri app
         run: npm run tauri build
         env:
+          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST || 'https://us.i.posthog.com' }}
           TAURI_SIGNING_PRIVATE_KEY: ""
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
 

@@ -39,6 +39,38 @@ npm run dev            # Frontend only (no Tauri window)
 npx tsc --noEmit       # TypeScript check
 ```
 
+## Product analytics
+
+The Windows build sends personless product events through the native Rust
+backend using the official `posthog-rs` SDK. Events are validated against a
+fixed schema and written to an app-data outbox before delivery, so a temporary
+network failure does not lose the measurement trail.
+
+Production builds require these GitHub Actions repository variables:
+
+- `POSTHOG_PROJECT_TOKEN`: the public project token from the dedicated PostHog
+  project
+- `POSTHOG_HOST`: optional ingestion host, defaulting to
+  `https://us.i.posthog.com`
+
+Local builds omit telemetry when `POSTHOG_PROJECT_TOKEN` is unset. Never add a
+PostHog personal API key or project secret key to the application.
+
+Captured events:
+
+- `edr_app_first_open`
+- `edr_app_opened`
+- `edr_scan_started`
+- `edr_scenario_completed`
+- `edr_scan_cancelled`
+- `edr_scan_completed`
+- `edr_report_exported`
+- `edr_comparison_viewed`
+- `edr_demo_clicked`
+
+The event schema excludes PowerShell output, errors, hostnames, usernames, IP
+address properties, and report paths. PostHog GeoIP enrichment is disabled.
+
 ## Tech Stack
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS 4, Framer Motion

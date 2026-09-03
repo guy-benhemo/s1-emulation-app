@@ -3,7 +3,13 @@ import { AnimatePresence, motion } from "motion/react";
 import { AppPhase, ExecutionResult, Scenario } from "../types";
 import { DEFAULT_SELECTED_IDS, INITIAL_SCENARIOS } from "../data/scenarios";
 import { executeScenario } from "../lib/executor";
+import {
+  ComparisonEntryPoint,
+  ScanMode,
+  trackEvent,
+} from "../lib/analytics";
 import { stepTransition } from "../lib/motion";
+import { getOutcome } from "../utils/verdict";
 import WelcomeScreen from "./WelcomeScreen";
 import SelectionScreen from "./SelectionScreen";
 import ExecutionView from "./ExecutionView";
@@ -147,9 +153,48 @@ function sleep(ms: number) {
 /** How long a verdict stays on screen before advancing. */
 const VERDICT_DWELL_MS = 1400;
 
+interface RunTelemetry {
+  runId: string;
+  mode: ScanMode;
+  startedAt: number;
+  scenarioCount: number;
+  completedCount: number;
+  blockedCount: number;
+  undetectedCount: number;
+  erroredCount: number;
+  coveragePercent: number;
+}
+
+function createRunTelemetry(mode: ScanMode, scenarioCount: number): RunTelemetry {
+  return {
+    runId: crypto.randomUUID(),
+    mode,
+    startedAt: Date.now(),
+    scenarioCount,
+    completedCount: 0,
+    blockedCount: 0,
+    undetectedCount: 0,
+    erroredCount: 0,
+    coveragePercent: 0,
+  };
+}
+
 export default function AppShell() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const runIdRef = useRef(0);
+  const activeRunRef = useRef<RunTelemetry | null>(null);
+  const lastRunRef = useRef<RunTelemetry | null>(null);
+
+  function startRun(mode: ScanMode, scenarioCount: number, action: Action) {
+    const run = createRunTelemetry(mode, scenarioCount);
+    activeRunRef.current = run;
+    trackEvent("edr_scan_started", {
+      run_id: run.runId,
+      scan_mode: mode,
+      scenario_count: scenarioCount,
+    });
+    dispatch(action);
+  }
 
   useEffect(() => {
     if (state.phase !== "executing" || state.runQueue.length === 0) return;
@@ -170,6 +215,25 @@ export default function AppShell() {
 
         dispatch({ type: "SCENARIO_COMPLETE", id: scenarioId, result });
 
+        const run = activeRunRef.current;
+        if (run) {
+          const outcome = getOutcome(result.status);
+          run.completedCount += 1;
+          if (outcome === "protected") run.blockedCount += 1;
+          if (outcome === "executed") run.undetectedCount += 1;
+          if (outcome === "errored") run.erroredCount += 1;
+          trackEvent("edr_scenario_completed", {
+            run_id: run.runId,
+            scan_mode: run.mode,
+            scenario_id: scenarioId,
+            scenario_index: i + 1,
+            scenario_count: run.scenarioCount,
+            result_status: result.status,
+            outcome,
+            duration_ms: result.durationMs,
+          });
+        }
+
         await sleep(VERDICT_DWELL_MS);
         if (!alive()) return;
 
@@ -178,7 +242,27 @@ export default function AppShell() {
         }
       }
 
-      if (alive()) dispatch({ type: "SHOW_RESULTS" });
+      if (alive()) {
+        const run = activeRunRef.current;
+        if (run) {
+          const tested = run.blockedCount + run.undetectedCount;
+          run.coveragePercent =
+            tested > 0 ? Math.round((run.blockedCount / tested) * 100) : 0;
+          trackEvent("edr_scan_completed", {
+            run_id: run.runId,
+            scan_mode: run.mode,
+            scenario_count: run.scenarioCount,
+            blocked_count: run.blockedCount,
+            undetected_count: run.undetectedCount,
+            errored_count: run.erroredCount,
+            coverage_percent: run.coveragePercent,
+            duration_ms: Date.now() - run.startedAt,
+          });
+          lastRunRef.current = { ...run };
+          activeRunRef.current = null;
+        }
+        dispatch({ type: "SHOW_RESULTS" });
+      }
     })();
 
     return () => {
@@ -186,12 +270,48 @@ export default function AppShell() {
     };
   }, [state.phase, state.runQueue]);
 
+  function cancelRun() {
+    const run = activeRunRef.current;
+    if (run) {
+      trackEvent("edr_scan_cancelled", {
+        run_id: run.runId,
+        scan_mode: run.mode,
+        scenario_count: run.scenarioCount,
+        completed_count: run.completedCount,
+        duration_ms: Date.now() - run.startedAt,
+      });
+      activeRunRef.current = null;
+    }
+    runIdRef.current += 1;
+    dispatch({ type: "RESET" });
+  }
+
+  function showComparison(entryPoint: ComparisonEntryPoint) {
+    const run = lastRunRef.current;
+    if (run) {
+      trackEvent("edr_comparison_viewed", {
+        run_id: run.runId,
+        entry_point: entryPoint,
+        scenario_count: run.scenarioCount,
+        blocked_count: run.blockedCount,
+        undetected_count: run.undetectedCount,
+        errored_count: run.erroredCount,
+        coverage_percent: run.coveragePercent,
+      });
+    }
+    dispatch({ type: "SHOW_COMPARE" });
+  }
+
   function renderPhase() {
     switch (state.phase) {
       case "welcome":
         return (
           <WelcomeScreen
-            onRunAll={() => dispatch({ type: "START_FULL_SCAN" })}
+            onRunAll={() =>
+              startRun("full", INITIAL_SCENARIOS.length, {
+                type: "START_FULL_SCAN",
+              })
+            }
             onSelectIndividual={() => dispatch({ type: "GO_TO_SELECT" })}
           />
         );
@@ -203,7 +323,11 @@ export default function AppShell() {
             selectedIds={state.selectedIds}
             onToggle={(id) => dispatch({ type: "TOGGLE_SELECTION", id })}
             onToggleAll={() => dispatch({ type: "TOGGLE_ALL" })}
-            onRunSelected={() => dispatch({ type: "START_SELECTED" })}
+            onRunSelected={() =>
+              startRun("selected", state.selectedIds.length, {
+                type: "START_SELECTED",
+              })
+            }
             onBack={() => dispatch({ type: "RESET" })}
           />
         );
@@ -214,7 +338,7 @@ export default function AppShell() {
             scenarios={state.scenarios}
             runQueue={state.runQueue}
             currentIndex={state.currentIndex}
-            onCancel={() => dispatch({ type: "RESET" })}
+            onCancel={cancelRun}
           />
         );
 
@@ -223,8 +347,11 @@ export default function AppShell() {
           <ResultsScreen
             scenarios={state.scenarios}
             runQueue={state.runQueue}
-            onRunAgain={() => dispatch({ type: "RERUN" })}
-            onCompare={() => dispatch({ type: "SHOW_COMPARE" })}
+            runId={lastRunRef.current?.runId ?? null}
+            onRunAgain={() =>
+              startRun("rerun", state.runQueue.length, { type: "RERUN" })
+            }
+            onCompare={showComparison}
           />
         );
 
@@ -233,6 +360,7 @@ export default function AppShell() {
           <CompareScreen
             scenarios={state.scenarios}
             runQueue={state.runQueue}
+            runId={lastRunRef.current?.runId ?? null}
             onBack={() => dispatch({ type: "SHOW_RESULTS" })}
           />
         );

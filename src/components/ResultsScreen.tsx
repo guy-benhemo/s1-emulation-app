@@ -5,6 +5,10 @@ import { getOutcome } from "../utils/verdict";
 import { getRecommendation } from "../data/recommendations";
 import { TARGET_HOST } from "../data/scenarios";
 import { saveReportPdf } from "../lib/savePdf";
+import {
+  ComparisonEntryPoint,
+  trackEvent,
+} from "../lib/analytics";
 import { useCountUp } from "../lib/useCountUp";
 import { listContainer, listItem } from "../lib/motion";
 import RailLayout from "./RailLayout";
@@ -14,8 +18,9 @@ import RecommendationCard from "./RecommendationCard";
 interface ResultsScreenProps {
   scenarios: Scenario[];
   runQueue: string[];
+  runId: string | null;
   onRunAgain: () => void;
-  onCompare: () => void;
+  onCompare: (entryPoint: ComparisonEntryPoint) => void;
 }
 
 function gradeFor(score: number): string {
@@ -100,6 +105,7 @@ function StatTile({
 export default function ResultsScreen({
   scenarios,
   runQueue,
+  runId,
   onRunAgain,
   onCompare,
 }: ResultsScreenProps) {
@@ -149,6 +155,19 @@ export default function ResultsScreen({
       grade,
       summary,
     });
+
+    if (runId) {
+      trackEvent("edr_report_exported", {
+        run_id: runId,
+        report_status: result.status,
+        scenario_count: total,
+        blocked_count: blockedCount,
+        undetected_count: undetected.length,
+        errored_count: erroredCount,
+        coverage_percent: coverage,
+        grade,
+      });
+    }
 
     if (result.status === "saved") {
       setSaveState("saved");
@@ -247,7 +266,7 @@ export default function ResultsScreen({
             Re-run
           </button>
           <button
-            onClick={onCompare}
+            onClick={() => onCompare("fix_all")}
             className="btn btn-primary gap-2 px-5 py-[11px] text-[14px] leading-[18px]"
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
@@ -302,7 +321,7 @@ export default function ResultsScreen({
               key={scenario.id}
               scenario={scenario}
               recommendation={getRecommendation(scenario.id)}
-              onPlanFix={onCompare}
+              onPlanFix={() => onCompare("plan_fix")}
             />
           ))
         )}
@@ -333,7 +352,7 @@ export default function ResultsScreen({
             </p>
           </div>
           <button
-            onClick={onCompare}
+            onClick={() => onCompare("compare_guardz")}
             className="btn btn-secondary shrink-0 px-[18px] py-2.5 text-[13px] leading-4"
           >
             Compare with Guardz

@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { Scenario } from "../types";
 import { getOutcome } from "../utils/verdict";
 import { isTauri } from "../lib/executor";
+import { trackEvent } from "../lib/analytics";
 import { EASE_OUT, fadeUp, listContainer, listItem } from "../lib/motion";
 import GridBackdrop from "./GridBackdrop";
 import GuardzMark from "./GuardzMark";
@@ -12,6 +13,7 @@ export const DEMO_URL =
 interface CompareScreenProps {
   scenarios: Scenario[];
   runQueue: string[];
+  runId: string | null;
   onBack: () => void;
 }
 
@@ -53,6 +55,7 @@ function Stars({ count = 5 }: { count?: number }) {
 export default function CompareScreen({
   scenarios,
   runQueue,
+  runId,
   onBack,
 }: CompareScreenProps) {
   const ran = runQueue
@@ -61,7 +64,30 @@ export default function CompareScreen({
 
   const total = ran.length;
   const exposed = ran.filter((s) => getOutcome(s.status) === "executed");
+  const protectedCount = ran.filter(
+    (s) => getOutcome(s.status) === "protected",
+  ).length;
   const blockedCount = total - exposed.length;
+  const erroredCount = ran.filter(
+    (s) => getOutcome(s.status) === "errored",
+  ).length;
+  const tested = protectedCount + exposed.length;
+  const coverage = tested > 0 ? Math.round((protectedCount / tested) * 100) : 0;
+
+  function handleDemo(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (runId) {
+      trackEvent("edr_demo_clicked", {
+        run_id: runId,
+        destination: "guardz_book_a_demo",
+        scenario_count: total,
+        blocked_count: protectedCount,
+        undetected_count: exposed.length,
+        errored_count: erroredCount,
+        coverage_percent: coverage,
+      });
+    }
+    void openDemo(event);
+  }
 
   return (
     <div className="scrollbar-slim relative h-screen w-full overflow-y-auto bg-[#0B0819]">
@@ -279,7 +305,7 @@ export default function CompareScreen({
               href={DEMO_URL}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={openDemo}
+              onClick={handleDemo}
               className="btn btn-light h-[56px] gap-[10px] px-8 text-[16px] leading-5"
             >
               Book a demo
