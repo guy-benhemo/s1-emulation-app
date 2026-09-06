@@ -47,6 +47,9 @@ fixed schema and written to an app-data outbox before delivery, so a temporary
 network failure does not lose the measurement trail.
 
 Windows CI builds target [EDR App (Marketing), project 596248](https://us.posthog.com/project/596248/home).
+Reporting: [EDR Desktop Measurement](https://us.posthog.com/project/596248/dashboard/2069605).
+Validation evidence and remaining Windows acceptance checks are in
+[analytics verification](docs/analytics-verification.md).
 The Windows workflow supplies its public ingestion token and the US ingestion
 host at job level, covering both signed and unsigned builds. The token can send
 events but cannot read project data or administer the account. It is not a

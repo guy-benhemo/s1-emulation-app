@@ -197,15 +197,16 @@ impl AnalyticsState {
     }
 
     pub fn track(&self, event: AnalyticsEvent) -> Result<(), String> {
-        if !self.queue_event(event)? {
+        if !self.is_enabled() {
             return Ok(());
         }
 
+        let queued = self.queue_event(event);
         let state = self.clone();
         tauri::async_runtime::spawn(async move {
             state.flush_pending().await;
         });
-        Ok(())
+        queued.map(|_| ())
     }
 
     async fn client(&self) -> Result<&Arc<Client>, String> {
@@ -583,6 +584,72 @@ mod tests {
             state.0.installation_id
         );
         fs::remove_dir_all(data_dir).unwrap();
+    }
+
+    #[test]
+    fn full_outbox_still_attempts_delivery() {
+        use std::io::Read;
+        use std::net::TcpListener;
+        use std::time::{Duration, Instant};
+
+        let (state, data_dir) = test_state("test-only-not-a-project-key".to_owned());
+        for _ in 0..MAX_OUTBOX_EVENTS {
+            state.queue_event(event("edr_app_opened", &[])).unwrap();
+        }
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let options = ClientOptionsBuilder::default()
+            .api_key("test-only-not-a-project-key".to_owned())
+            .host(format!("http://{}", listener.local_addr().unwrap()))
+            .request_timeout_seconds(2)
+            .max_capture_attempts(1)
+            .build()
+            .unwrap();
+        tauri::async_runtime::block_on(async {
+            assert!(state
+                .0
+                .client
+                .set(Arc::new(posthog_rs::client(options).await))
+                .is_ok());
+        });
+        let receiver = std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(3);
+            while Instant::now() < deadline {
+                match listener.accept() {
+                    Ok((mut stream, _)) => {
+                        stream
+                            .set_read_timeout(Some(Duration::from_secs(2)))
+                            .unwrap();
+                        let mut buffer = [0; 4096];
+                        assert!(stream.read(&mut buffer).unwrap() > 0);
+                        stream.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+                        return true;
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("Local test receiver failed: {error}"),
+                }
+            }
+            false
+        });
+        assert_eq!(
+            state.track(event("edr_app_opened", &[])).unwrap_err(),
+            "Analytics outbox is full"
+        );
+        let attempted = receiver.join().unwrap();
+        tauri::async_runtime::block_on(async {
+            let _guard = state.0.delivery_lock.lock().await;
+        });
+        assert_eq!(
+            read_pending(&state.0.outbox_dir).unwrap().len(),
+            MAX_OUTBOX_EVENTS
+        );
+        fs::remove_dir_all(data_dir).unwrap();
+        assert!(
+            attempted,
+            "A full outbox must still schedule a delivery attempt"
+        );
     }
 
     #[test]
