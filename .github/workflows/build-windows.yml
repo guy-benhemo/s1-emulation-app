@@ -5,9 +5,15 @@ on:
     branches: [main, feature/**]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      POSTHOG_PROJECT_TOKEN: phc_u397JhUZeJnPLC4qx3F3esj2VpF4giQt293W2ptnZuUG
+      POSTHOG_HOST: https://us.i.posthog.com
 
     steps:
       - uses: actions/checkout@v4
@@ -29,27 +35,113 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Verify analytics configuration
-        shell: pwsh
-        env:
-          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
-        run: |
-          if (-not $env:POSTHOG_PROJECT_TOKEN) {
-            throw "Repository variable POSTHOG_PROJECT_TOKEN is required for measured Windows builds."
-          }
+      - name: Test native analytics
+        run: cargo test --manifest-path src-tauri/Cargo.toml analytics::tests
 
-      - name: Build Tauri app
-        run: npm run tauri build
+      # Signing is gated on two things: the ref must be main, and the repo
+      # variable AZURE_SIGNING_ENABLED must be "true". Until that variable is
+      # set, every branch (main included) builds unsigned exactly as before.
+      - name: Resolve signing gate
+        id: gate
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/main" ] && [ "${{ vars.AZURE_SIGNING_ENABLED }}" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Signing ENABLED for $GITHUB_REF"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Signing skipped (ref=$GITHUB_REF, AZURE_SIGNING_ENABLED='${{ vars.AZURE_SIGNING_ENABLED }}')"
+          fi
+
+      - name: Check signing configuration is complete
+        if: steps.gate.outputs.enabled == 'true'
+        shell: bash
         env:
-          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
-          POSTHOG_HOST: ${{ vars.POSTHOG_HOST || 'https://us.i.posthog.com' }}
-          TAURI_SIGNING_PRIVATE_KEY: ""
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          missing=""
+          for name in AZURE_SIGNING_ENDPOINT AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE \
+                      AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID; do
+            eval "value=\$$name"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Signing is enabled but these are unset:$missing - see README 'Windows Code Signing'."
+            exit 1
+          fi
+          echo "All signing inputs present."
+
+      # artifact-signing-cli shells out to signtool and needs .NET 8 at runtime.
+      - name: Setup .NET
+        if: steps.gate.outputs.enabled == 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install artifact-signing-cli
+        if: steps.gate.outputs.enabled == 'true'
+        run: cargo install artifact-signing-cli --locked
+
+      - name: Generate Tauri signing config
+        if: steps.gate.outputs.enabled == 'true'
+        shell: bash
+        env:
+          ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const { ENDPOINT, ACCOUNT, PROFILE } = process.env;
+            const signCommand = `artifact-signing-cli -e ${ENDPOINT} -a ${ACCOUNT} -c ${PROFILE} %1`;
+            fs.writeFileSync(
+              "src-tauri/tauri.signing.conf.json",
+              JSON.stringify({ bundle: { windows: { signCommand } } }, null, 2) + "\n"
+            );
+          '
+          cat src-tauri/tauri.signing.conf.json
+
+      # Credentials go on the build step because Tauri runs signCommand as a
+      # child process, so the CLI reads them from the inherited environment.
+      - name: Build Tauri app (signed)
+        if: steps.gate.outputs.enabled == 'true'
+        run: npm run tauri build -- --config src-tauri/tauri.signing.conf.json
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Build Tauri app (unsigned)
+        if: steps.gate.outputs.enabled != 'true'
+        run: npm run tauri build
+
+      # Fail the build rather than shipping an installer that only looks signed.
+      - name: Verify Authenticode signatures
+        if: steps.gate.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $artifacts = Get-ChildItem -Path src-tauri/target/release/bundle -Recurse -Include *.exe, *.msi
+          if (-not $artifacts) { throw "No installers found to verify." }
+          $bad = @()
+          foreach ($file in $artifacts) {
+            $sig = Get-AuthenticodeSignature $file.FullName
+            Write-Host "$($file.Name): $($sig.Status)"
+            Write-Host "  signer:    $($sig.SignerCertificate.Subject)"
+            Write-Host "  timestamp: $($sig.TimeStamperCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') { $bad += "$($file.Name) [$($sig.Status)]" }
+          }
+          if ($bad.Count -gt 0) { throw "Invalid signature on: $($bad -join ', ')" }
+          Write-Host "All $($artifacts.Count) artifact(s) carry a valid Authenticode signature."
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: guardz-s1-demo-windows
+          name: guardz-s1-demo-windows${{ steps.gate.outputs.enabled == 'true' && '-signed' || '-unsigned' }}
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe

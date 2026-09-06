@@ -322,7 +322,6 @@ export default function AppShell() {
             scenarios={state.scenarios}
             selectedIds={state.selectedIds}
             onToggle={(id) => dispatch({ type: "TOGGLE_SELECTION", id })}
-            onToggleAll={() => dispatch({ type: "TOGGLE_ALL" })}
             onRunSelected={() =>
               startRun("selected", state.selectedIds.length, {
                 type: "START_SELECTED",

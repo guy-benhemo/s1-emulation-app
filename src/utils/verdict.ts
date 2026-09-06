@@ -22,3 +22,19 @@ export function isSettled(status: ScenarioStatus): boolean {
     status === "failed"
   );
 }
+
+/** The five readiness grades `gradeFor` can return. */
+export type Grade = "A" | "B" | "C" | "D" | "F";
+
+/**
+ * Grade tones. A, C, D and F reuse the semantic label steps off "Badge ·
+ * Showcase · Dark" — success, caution, warning and error — so the grade reads
+ * on the same scale as the severity chips. B sits on the brand light purple.
+ */
+export const GRADE_TONE: Record<Grade, string> = {
+  A: "#00CC86",
+  B: "#A289FC",
+  C: "#FBBF24",
+  D: "#FB923C",
+  F: "#FE92A3",
+};

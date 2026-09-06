@@ -148,6 +148,11 @@ impl AnalyticsState {
         );
         properties.insert("runtime".to_owned(), Value::String("tauri".to_owned()));
         properties.insert(
+            "app_surface".to_owned(),
+            Value::String("edr_attack_simulator".to_owned()),
+        );
+        properties.insert("is_test".to_owned(), Value::Bool(cfg!(test)));
+        properties.insert(
             "release_channel".to_owned(),
             Value::String(
                 if cfg!(debug_assertions) {
@@ -544,6 +549,129 @@ fn now_ms() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_state(project_token: String) -> (AnalyticsState, PathBuf) {
+        let data_dir = std::env::temp_dir().join(format!("edr-analytics-test-{}", Uuid::new_v4()));
+        let outbox_dir = data_dir.join("analytics-outbox");
+        fs::create_dir_all(&outbox_dir).unwrap();
+        let state = AnalyticsState(Arc::new(AnalyticsInner {
+            project_token: Some(project_token),
+            host: DEFAULT_POSTHOG_HOST.to_owned(),
+            installation_id: load_or_create_installation_id(&data_dir).unwrap(),
+            session_id: Uuid::new_v4().to_string(),
+            first_open_marker: data_dir.join("analytics-first-open-queued"),
+            outbox_dir,
+            file_lock: Mutex::new(()),
+            delivery_lock: AsyncMutex::new(()),
+            client: OnceCell::new(),
+        }));
+        (state, data_dir)
+    }
+
+    #[test]
+    fn queued_events_include_surface_and_test_marker() {
+        let (state, data_dir) = test_state("test-only-not-a-project-key".to_owned());
+        assert!(state.queue_event(event("edr_app_opened", &[])).unwrap());
+        let events = read_pending(&state.0.outbox_dir).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].properties["app_surface"], "edr_attack_simulator");
+        assert_eq!(events[0].properties["is_test"], true);
+        assert_eq!(events[0].properties["platform"], std::env::consts::OS);
+        assert_eq!(events[0].distinct_id, state.0.installation_id);
+        assert_eq!(
+            load_or_create_installation_id(&data_dir).unwrap(),
+            state.0.installation_id
+        );
+        fs::remove_dir_all(data_dir).unwrap();
+    }
+
+    #[test]
+    #[ignore = "Sends nine synthetic events; requires POSTHOG_SMOKE_TOKEN explicitly"]
+    fn live_posthog_smoke_test() {
+        let token = std::env::var("POSTHOG_SMOKE_TOKEN").expect("POSTHOG_SMOKE_TOKEN is required");
+        assert!(
+            token.starts_with("phc_"),
+            "Use a public project ingestion token"
+        );
+        let (state, data_dir) = test_state(token);
+        let run_id = Uuid::new_v4().to_string();
+        let fixtures = [
+            ("edr_app_first_open", serde_json::json!({})),
+            ("edr_app_opened", serde_json::json!({})),
+            (
+                "edr_scan_started",
+                serde_json::json!({
+                    "run_id": run_id, "scan_mode": "selected", "scenario_count": 1
+                }),
+            ),
+            (
+                "edr_scenario_completed",
+                serde_json::json!({
+                    "run_id": run_id, "scan_mode": "selected", "scenario_id": "certutil-dump",
+                    "scenario_index": 1, "scenario_count": 1, "result_status": "blocked",
+                    "outcome": "protected", "duration_ms": 10
+                }),
+            ),
+            (
+                "edr_scan_completed",
+                serde_json::json!({
+                    "run_id": run_id, "scan_mode": "selected", "scenario_count": 1,
+                    "blocked_count": 1, "undetected_count": 0, "errored_count": 0,
+                    "coverage_percent": 100, "duration_ms": 10
+                }),
+            ),
+            (
+                "edr_report_exported",
+                serde_json::json!({
+                    "run_id": run_id, "report_status": "saved", "scenario_count": 1,
+                    "blocked_count": 1, "undetected_count": 0, "errored_count": 0,
+                    "coverage_percent": 100, "grade": "A"
+                }),
+            ),
+            (
+                "edr_comparison_viewed",
+                serde_json::json!({
+                    "run_id": run_id, "entry_point": "compare_guardz", "scenario_count": 1,
+                    "blocked_count": 1, "undetected_count": 0, "errored_count": 0,
+                    "coverage_percent": 100
+                }),
+            ),
+            (
+                "edr_demo_clicked",
+                serde_json::json!({
+                    "run_id": run_id, "destination": "guardz_book_a_demo", "scenario_count": 1,
+                    "blocked_count": 1, "undetected_count": 0, "errored_count": 0,
+                    "coverage_percent": 100
+                }),
+            ),
+            (
+                "edr_scan_cancelled",
+                serde_json::json!({
+                    "run_id": Uuid::new_v4().to_string(), "scan_mode": "selected",
+                    "scenario_count": 1, "completed_count": 0, "duration_ms": 1
+                }),
+            ),
+        ];
+        for (name, properties) in fixtures {
+            assert!(state
+                .queue_event(AnalyticsEvent {
+                    name: name.to_owned(),
+                    properties: serde_json::from_value(properties).unwrap(),
+                })
+                .unwrap());
+        }
+        assert_eq!(read_pending(&state.0.outbox_dir).unwrap().len(), 9);
+        tauri::async_runtime::block_on(state.flush_pending());
+        assert!(
+            read_pending(&state.0.outbox_dir).unwrap().is_empty(),
+            "Delivery incomplete; outbox retained"
+        );
+        println!(
+            "Submitted 9 is_test=true events; distinct_id={}",
+            state.0.installation_id
+        );
+        fs::remove_dir_all(data_dir).unwrap();
+    }
 
     fn event(name: &str, properties: &[(&str, Value)]) -> AnalyticsEvent {
         AnalyticsEvent {

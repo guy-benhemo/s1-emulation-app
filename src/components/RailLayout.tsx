@@ -5,86 +5,54 @@ import GridBackdrop from "./GridBackdrop";
 import { heroContainer, heroItem } from "../lib/motion";
 
 interface RailLayoutProps {
-  title: ReactNode;
-  subtitle?: ReactNode;
-  eyebrow?: string;
-  railMiddle?: ReactNode;
-  railBottom?: ReactNode;
-  railAction?: ReactNode;
+  /** The rail's title block. Each board sets its own type, so the screen
+   *  supplies the whole group rather than a title/subtitle pair. */
+  heading: ReactNode;
+  middle?: ReactNode;
+  bottom?: ReactNode;
+  action?: ReactNode;
   children: ReactNode;
 }
 
 export default function RailLayout({
-  title,
-  subtitle,
-  eyebrow,
-  railMiddle,
-  railBottom,
-  railAction,
+  heading,
+  middle,
+  bottom,
+  action,
   children,
 }: RailLayoutProps) {
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      <aside
-        className="relative flex w-[392px] shrink-0 flex-col justify-between overflow-hidden px-[38px] py-10"
-        style={{ backgroundImage: "var(--gradient-purple)" }}
-      >
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(360px 360px at 0% 0%, rgba(255,255,255,0.13), rgba(255,255,255,0) 70%)",
-          }}
-        />
+    <div className="relative flex h-screen w-full overflow-hidden">
+      <GridBackdrop />
 
+      <aside className="relative flex w-[392px] shrink-0 flex-col justify-between overflow-hidden border-r border-guardz-light-purple bg-surface-raised px-[38px] py-10">
         <motion.div
           variants={heroContainer}
           initial="initial"
           animate="animate"
-          className="relative flex flex-col gap-6"
+          className="flex flex-col gap-6"
         >
-          <motion.div variants={heroItem}>
-            <GuardzMark size={34} radius={8} />
+          <motion.div
+            variants={heroItem}
+            className="flex items-center gap-[11px]"
+          >
+            <GuardzMark size={34} radius={10} glyph={21} />
           </motion.div>
 
-          <div className="flex flex-col gap-4">
-            <motion.h1
-              variants={heroItem}
-              className="text-rail-title text-white"
-            >
-              {title}
-            </motion.h1>
-
-            {eyebrow && (
-              <motion.p
-                variants={heroItem}
-                className="text-[13px] leading-4 font-medium tracking-[0.14em] text-white/60 uppercase"
-              >
-                {eyebrow}
-              </motion.p>
-            )}
-
-            {subtitle && (
-              <motion.p
-                variants={heroItem}
-                className="text-[15px] leading-[23px] text-white/75"
-              >
-                {subtitle}
-              </motion.p>
-            )}
-          </div>
+          <motion.div variants={heroItem}>{heading}</motion.div>
         </motion.div>
 
-        {railMiddle && <div className="relative">{railMiddle}</div>}
+        {middle}
 
-        <div className="relative flex flex-col gap-[18px]">
-          {railBottom}
-          {railAction}
-        </div>
+        {(bottom || action) && (
+          <div className="flex flex-col gap-[18px]">
+            {bottom}
+            {action}
+          </div>
+        )}
       </aside>
 
-      <main className="relative flex min-w-0 flex-1 flex-col bg-[#0B0819]">
-        <GridBackdrop />
+      <main className="relative flex min-w-0 flex-1 flex-col">
         <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
       </main>
     </div>

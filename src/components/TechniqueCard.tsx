@@ -25,55 +25,56 @@ export default function TechniqueCard({
         borderWidth: selected ? 1.5 : 1,
         borderColor: selected ? "#A289FCB3" : "#A289FC4D",
       }}
-      className="flex w-full cursor-pointer flex-col items-stretch gap-[7px] rounded-[18px] border-solid px-4 py-3.5 text-left transition-colors duration-200"
+      className="flex h-[116px] w-full cursor-pointer flex-col gap-[10px] rounded-[18px] border-solid bg-origin-border p-4 text-left transition-colors duration-200"
     >
       <div className="flex w-full items-center justify-between">
-        <span
-          className="inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] leading-[14px] font-semibold text-[#C9BCFF]"
-          style={{ backgroundColor: selected ? "#A289FC2E" : "#A289FC24" }}
-        >
-          {scenario.category}
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className="inline-flex shrink-0 items-center rounded-full px-2.5 py-[3px] text-[14px] leading-[18px] font-semibold text-[#C9BCFF]"
+            style={{ backgroundColor: selected ? "#A289FC2E" : "#A289FC24" }}
+          >
+            {scenario.mitreId}
+          </span>
+          <span className="truncate text-[16px] leading-5 font-bold tracking-[0.5px] text-white">
+            {scenario.name}
+          </span>
         </span>
 
         {selected ? (
           <span
-            className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full"
-            style={{ backgroundImage: "var(--gradient-purple)" }}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+            style={{
+              backgroundImage: "var(--gradient-mark)",
+              boxShadow: "0 0 14px #654FE899",
+            }}
           >
             <motion.svg
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.15, ease: EASE_OUT }}
-              className="h-3 w-3 text-white"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={3.2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
+              width="16"
+              height="16"
+              viewBox="0 -6.667 26.667 26.667"
             >
-              <path d="M20 6 9 17l-5-5" />
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M22.276 0.391a1.333 1.333 0 0 1 0 1.885l-10.666 10.667a1.333 1.333 0 0 1-1.886 0l-5.333-5.334a1.333 1.333 0 0 1 1.885-1.885L10.667 10.115l9.724-9.724a1.333 1.333 0 0 1 1.885 0z"
+                fill="#FFFFFF"
+              />
             </motion.svg>
           </span>
         ) : (
           <span
-            className="inline-block h-[22px] w-[22px] shrink-0 rounded-full border-solid"
+            className="inline-block h-6 w-6 shrink-0 rounded-full border-solid"
             style={{ borderWidth: 1.5, borderColor: "#A289FC80" }}
           />
         )}
       </div>
 
-      <h3 className="text-[16px] leading-[20px] font-bold text-white">
-        {scenario.name}
-      </h3>
-
-      <p className="text-[13px] leading-[18px] text-text-dim">
+      <p className="text-[16px] leading-[145%] tracking-[0.5px] text-text-dim">
         {scenario.question}
       </p>
-
-      <span className="mt-px font-mono text-[11px] leading-[14px] text-[#A289FC99]">
-        {scenario.mitreId}
-      </span>
     </motion.button>
   );
 }

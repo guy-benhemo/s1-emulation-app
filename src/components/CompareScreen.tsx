@@ -3,12 +3,9 @@ import { Scenario } from "../types";
 import { getOutcome } from "../utils/verdict";
 import { isTauri } from "../lib/executor";
 import { trackEvent } from "../lib/analytics";
+import { DEMO_URL } from "../lib/links";
 import { EASE_OUT, fadeUp, listContainer, listItem } from "../lib/motion";
 import GridBackdrop from "./GridBackdrop";
-import GuardzMark from "./GuardzMark";
-
-export const DEMO_URL =
-  "https://guardz.com/book-a-demo?utm_source=edr_attack_sim";
 
 interface CompareScreenProps {
   scenarios: Scenario[];
@@ -17,11 +14,12 @@ interface CompareScreenProps {
   onBack: () => void;
 }
 
-const BENEFITS = [
-  "Prioritize risk across every client",
-  "Replace fragmented tools and cut costs",
-  "Scale security delivery without adding headcount",
-];
+/** Copy from the board, not a measurement — Guardz isn't running here. */
+const GUARDZ_MEDIAN_BLOCK = "0.3s";
+
+/** The two verdict columns keep a fixed lane so every row lines up. */
+const GUARDZ_COL = "w-[300px] shrink-0";
+const YOURS_COL = "w-[240px] shrink-0";
 
 /** In the desktop shell the link has to go out to the system browser. */
 async function openDemo(event: React.MouseEvent<HTMLAnchorElement>) {
@@ -35,21 +33,64 @@ async function openDemo(event: React.MouseEvent<HTMLAnchorElement>) {
   }
 }
 
-function Stars({ count = 5 }: { count?: number }) {
-  return (
-    <span className="flex items-center gap-0.5">
-      {Array.from({ length: count }).map((_, i) => (
-        <svg
-          key={i}
-          className="h-3 w-3 text-white/85"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L1.5 7.7l5.9-.9L10 1.5z" />
-        </svg>
-      ))}
-    </span>
-  );
+/** The selection mark off the technique tiles, unchanged. */
+const CheckMark = () => (
+  <span
+    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+    style={{
+      backgroundImage: "var(--gradient-mark)",
+      boxShadow: "0 0 14px #654FE899",
+    }}
+  >
+    <svg width="16" height="16" viewBox="0 -6.667 26.667 26.667">
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M22.276 0.391a1.333 1.333 0 0 1 0 1.885l-10.666 10.667a1.333 1.333 0 0 1-1.886 0l-5.333-5.334a1.333 1.333 0 0 1 1.885-1.885L10.667 10.115l9.724-9.724a1.333 1.333 0 0 1 1.885 0z"
+        fill="#FFFFFF"
+      />
+    </svg>
+  </span>
+);
+
+const CrossMark = () => (
+  <span
+    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-solid bg-[#FC52811F]"
+    style={{ borderWidth: 1, borderColor: "#FC528147" }}
+  >
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#FC5281"
+      strokeWidth={3.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  </span>
+);
+
+function medianSeconds(values: number[]): string | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const ms =
+    sorted.length % 2 === 0
+      ? (sorted[mid - 1] + sorted[mid]) / 2
+      : sorted[mid];
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+interface Row {
+  label: string;
+  /** MITRE line under the label, on the technique rows. */
+  detail?: string;
+  guardz: "check" | string;
+  yours: "cross" | string;
 }
 
 export default function CompareScreen({
@@ -72,7 +113,7 @@ export default function CompareScreen({
     (s) => getOutcome(s.status) === "errored",
   ).length;
   const tested = protectedCount + exposed.length;
-  const coverage = tested > 0 ? Math.round((protectedCount / tested) * 100) : 0;
+  const telemetryCoverage = tested > 0 ? Math.round((protectedCount / tested) * 100) : 0;
 
   function handleDemo(event: React.MouseEvent<HTMLAnchorElement>) {
     if (runId) {
@@ -83,15 +124,63 @@ export default function CompareScreen({
         blocked_count: protectedCount,
         undetected_count: exposed.length,
         errored_count: erroredCount,
-        coverage_percent: coverage,
+        coverage_percent: telemetryCoverage,
       });
     }
     void openDemo(event);
   }
+  const coverage = total > 0 ? Math.round((blockedCount / total) * 100) : 0;
+
+  // A tactic counts as covered only when the endpoint stopped every technique
+  // in it, which is what makes 6 of 6 against 3 of 6 an honest comparison.
+  const tactics = [...new Set(ran.map((s) => s.category))];
+  const tacticsCovered = tactics.filter((tactic) =>
+    ran
+      .filter((s) => s.category === tactic)
+      .every((s) => getOutcome(s.status) !== "executed"),
+  ).length;
+
+  const yoursMedian = medianSeconds(
+    ran
+      .filter((s) => getOutcome(s.status) !== "executed")
+      .map((s) => s.durationMs)
+      .filter((ms): ms is number => typeof ms === "number"),
+  );
+
+  const rows: Row[] = [
+    {
+      label: "Attacks blocked",
+      guardz: `${total} of ${total}`,
+      yours: `${blockedCount} of ${total}`,
+    },
+    { label: "Detection coverage", guardz: "100%", yours: `${coverage}%` },
+    {
+      label: "MITRE tactics covered",
+      guardz: `${tactics.length} of ${tactics.length}`,
+      yours: `${tacticsCovered} of ${tactics.length}`,
+    },
+    ...exposed.map<Row>((scenario) => ({
+      label: `Stopped ${scenario.name}`,
+      detail: `${scenario.mitreId} · ${scenario.category}`,
+      guardz: "check",
+      yours: "cross",
+    })),
+    ...(yoursMedian
+      ? [
+          {
+            label: "Median time to block",
+            guardz: GUARDZ_MEDIAN_BLOCK,
+            yours: yoursMedian,
+          } satisfies Row,
+        ]
+      : []),
+  ];
+
+  const lastIndex = rows.length - 1;
 
   return (
-    <div className="scrollbar-slim relative h-screen w-full overflow-y-auto bg-[#0B0819]">
-      <GridBackdrop intensity="hero" />
+    <div className="scrollbar-none relative h-screen w-full overflow-x-hidden overflow-y-auto bg-base">
+      <GridBackdrop />
 
       <button
         onClick={onBack}
@@ -107,235 +196,142 @@ export default function CompareScreen({
         Back to report
       </button>
 
-      <div className="relative mx-auto flex w-full max-w-[1000px] flex-col items-center px-10 pt-16 pb-20">
-        <motion.h1
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: EASE_OUT }}
-          className="text-center font-display text-[46px] leading-[54px] font-bold tracking-[-0.02em] text-white"
-        >
-          Guardz blocks what your stack missed
-        </motion.h1>
-
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.06, ease: EASE_OUT }}
-          className="mt-4 max-w-[740px] text-center text-[16px] leading-[26px] text-guardz-light-gray"
-        >
-          Your endpoint protection stopped {blockedCount} of {total} attacks on
-          its own. Running the same {total} attacks against a Guardz-protected
-          endpoint, every one is caught.
-        </motion.p>
-
-        <div className="mt-12 grid w-full grid-cols-2 gap-6">
-          {/* Your endpoint */}
-          <motion.section
-            variants={fadeUp}
-            initial="initial"
-            animate="animate"
-            className="rounded-[16px] border border-white/8 bg-white/[0.02] px-6 py-6"
+      <div className="relative flex min-h-full w-full flex-col items-center justify-center py-7">
+        <div className="flex w-[820px] max-w-[calc(100%-80px)] flex-col items-center gap-3.5">
+          <motion.h1
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: EASE_OUT }}
+            className="font-display text-center text-[52px] leading-[58px] font-bold tracking-[-0.01em] text-white"
           >
-            <div className="flex items-center justify-between">
-              <h2 className="text-[18px] font-bold text-white">Your endpoint</h2>
-              <span className="rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-[12px] text-guardz-light-gray">
-                Unmanaged
-              </span>
-            </div>
+            Guardz blocks what other
+            <br />
+            stacks miss
+          </motion.h1>
 
-            <p className="mt-5 flex items-baseline gap-3">
-              <span className="font-display text-[46px] leading-none font-bold text-white/45">
-                {blockedCount}/{total}
-              </span>
-              <span className="text-[14px] text-guardz-light-gray">
-                attacks blocked · {exposed.length} gaps
-              </span>
-            </p>
-
-            <div className="mt-5 border-t border-white/8 pt-4">
-              <motion.ul
-                variants={listContainer}
-                initial="initial"
-                animate="animate"
-                className="flex flex-col gap-3"
-              >
-                {exposed.map((s) => (
-                  <motion.li
-                    key={s.id}
-                    variants={listItem}
-                    className="flex items-center gap-3"
-                  >
-                    <span className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-guardz-pink/20">
-                      <svg
-                        className="h-2.5 w-2.5 text-guardz-pink"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={3}
-                        strokeLinecap="round"
-                      >
-                        <path d="M18 6 6 18M6 6l12 12" />
-                      </svg>
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[15px] text-white/90">
-                      {s.name}
-                    </span>
-                    <span className="text-[14px] font-medium text-guardz-pink">
-                      Exposed
-                    </span>
-                  </motion.li>
-                ))}
-              </motion.ul>
-            </div>
-          </motion.section>
-
-          {/* With Guardz */}
-          <motion.section
-            variants={fadeUp}
-            initial="initial"
-            animate="animate"
-            transition={{ duration: 0.4, delay: 0.08, ease: EASE_OUT }}
-            className="relative rounded-[16px] border border-guardz-light-purple/30 bg-guardz-purple/[0.10] px-6 py-6"
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.06, ease: EASE_OUT }}
+            className="max-w-[620px] text-center text-[17px] leading-[26px] text-text-dim"
           >
-            <span
-              className="absolute -top-3 right-5 rounded-full px-3 py-1 text-[12px] font-medium text-white"
-              style={{ backgroundImage: "var(--gradient-purple)" }}
-            >
-              Catches all {total}
-            </span>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <GuardzMark size={22} className="rounded-[7px]" />
-                <h2 className="text-[18px] font-bold text-white">With Guardz</h2>
-              </div>
-              <span className="rounded-full border border-guardz-light-purple/30 bg-guardz-purple/20 px-3 py-1 text-[12px] text-guardz-bright-purple">
-                Managed
-              </span>
-            </div>
-
-            <p className="mt-5 flex items-baseline gap-3">
-              <span className="font-display text-[46px] leading-none font-bold text-white">
-                {total}/{total}
-              </span>
-              <span className="text-[14px] text-guardz-light-gray">
-                attacks blocked · 0 gaps
-              </span>
-            </p>
-
-            <div className="mt-5 border-t border-guardz-light-purple/20 pt-4">
-              <motion.ul
-                variants={listContainer}
-                initial="initial"
-                animate="animate"
-                className="flex flex-col gap-3"
-              >
-                {exposed.map((s) => (
-                  <motion.li
-                    key={s.id}
-                    variants={listItem}
-                    className="flex items-center gap-3"
-                  >
-                    <span className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-guardz-purple/40">
-                      <svg
-                        className="h-2.5 w-2.5 text-white"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={3.2}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[15px] text-white/90">
-                      {s.name}
-                    </span>
-                    <span className="text-[14px] font-medium text-guardz-light-purple">
-                      Blocked
-                    </span>
-                  </motion.li>
-                ))}
-              </motion.ul>
-            </div>
-          </motion.section>
+            Same endpoint, same {total} attacks. Your endpoint protection
+            stopped {blockedCount} of them. Guardz stopped all {total} and
+            alerted on every one.
+          </motion.p>
         </div>
 
-        {/* CTA band */}
         <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.14, ease: EASE_OUT }}
-          className="relative mt-8 flex w-full items-center justify-between gap-10 overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,#8A6BFF_0%,#6E52F5_50%,#6146EC_100%)] px-9 py-8"
+          variants={fadeUp}
+          initial="initial"
+          animate="animate"
+          className="relative mt-9 flex w-[1020px] max-w-[calc(100%-80px)] flex-col"
         >
-          <div className="relative min-w-0">
-            <h3 className="font-display text-[27px] leading-[34px] font-bold text-white">
-              Unify your MSP security stack
-            </h3>
-            <p className="mt-2 text-[15px] text-white/85">
-              See how Guardz stops all {total} attacks and more in a live
-              30-minute demo.
-            </p>
-
-            <ul className="mt-5 flex flex-col gap-2.5">
-              {BENEFITS.map((benefit) => (
-                <li key={benefit} className="flex items-center gap-2.5">
-                  <span className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-white/25">
-                    <svg
-                      className="h-2.5 w-2.5 text-white"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={3.2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  </span>
-                  <span className="text-[15px] text-white">{benefit}</span>
-                </li>
-              ))}
-            </ul>
+          {/* The column breaks out above the table: cap, then the rows, then
+              the demo action — one slab crossing the quiet strips. */}
+          <div className="flex items-end">
+            <div className="flex-1" />
+            <div
+              className={`${GUARDZ_COL} flex h-22 items-center justify-center rounded-t-[20px] border-x border-t border-solid border-guardz-purple`}
+              style={{ backgroundImage: "var(--gradient-cap)" }}
+            >
+              <img
+                src="/guardz-wordmark.svg"
+                alt="Guardz"
+                className="h-[26px] w-auto"
+              />
+            </div>
+            <div
+              className={`${YOURS_COL} flex items-center justify-center pb-5.5`}
+            >
+              <p className="text-[16px] leading-[22px] font-semibold text-guardz-light-gray">
+                Your endpoint protection
+              </p>
+            </div>
           </div>
 
-          <div className="relative flex shrink-0 flex-col items-center gap-4">
-            <a
-              href={DEMO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={handleDemo}
-              className="btn btn-light h-[56px] gap-[10px] px-8 text-[16px] leading-5"
-            >
-              Book a demo
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2.2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M7 17 17 7M9 7h8v8" />
-              </svg>
-            </a>
+          <motion.div
+            variants={listContainer}
+            initial="initial"
+            animate="animate"
+          >
+            {rows.map((row, index) => {
+              const first = index === 0;
+              const last = index === lastIndex;
 
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5">
-                <span className="grid h-4 w-4 place-items-center rounded-full bg-[#FF492C] text-[9px] font-bold text-white">
-                  G
-                </span>
-                <Stars />
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-white/90">
-                  Capterra
-                </span>
-                <Stars />
-              </span>
+              return (
+                <motion.div key={row.label} variants={listItem} className="flex">
+                  <div
+                    className={[
+                      "flex flex-1 flex-col justify-center gap-0.75 bg-[#FFFFFF05] px-7",
+                      row.detail ? "py-3.5" : "py-4",
+                      first && "rounded-tl-[20px]",
+                      last ? "rounded-bl-[20px]" : "border-b border-[#FFFFFF0F]",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    <p className="text-[17px] leading-[23px] font-semibold text-white">
+                      {row.label}
+                    </p>
+                    {row.detail && (
+                      <p className="font-mono text-[13px] leading-[17px] text-guardz-medium-gray">
+                        {row.detail}
+                      </p>
+                    )}
+                  </div>
+
+                  <div
+                    className={`${GUARDZ_COL} flex items-center justify-center border-x border-solid border-guardz-purple bg-surface-raised`}
+                  >
+                    {row.guardz === "check" ? (
+                      <CheckMark />
+                    ) : (
+                      <span className="font-display text-[22px] leading-7 font-bold text-white">
+                        {row.guardz}
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    className={[
+                      "flex items-center justify-center bg-[#FFFFFF05]",
+                      YOURS_COL,
+                      first && "rounded-tr-[20px]",
+                      last ? "rounded-br-[20px]" : "border-b border-[#FFFFFF0F]",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    {row.yours === "cross" ? (
+                      <CrossMark />
+                    ) : (
+                      <span className="text-[17px] leading-[23px] font-semibold text-guardz-light-gray">
+                        {row.yours}
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
+
+          <div className="flex items-start">
+            <div className="flex-1" />
+            <div
+              className={`${GUARDZ_COL} flex h-24 items-center justify-center rounded-b-[20px] border-x border-b border-solid border-guardz-purple bg-surface-raised`}
+            >
+              <a
+                href={DEMO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleDemo}
+                className="btn btn-primary h-14 w-50 text-[16px] leading-4"
+              >
+                Book a demo
+              </a>
             </div>
+            <div className={YOURS_COL} />
           </div>
         </motion.section>
       </div>

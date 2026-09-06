@@ -1,18 +1,23 @@
+import type { CSSProperties } from "react";
+
 interface GuardzMarkProps {
-  /** Badge size. The glyph is inset at the board's 42/74 ratio. */
+  /** Tile size. 74 on A1, 34 in the rail on A2–A6. */
   size?: number;
   radius?: number;
+  /** Glyph size. The boards use 42 inside 74 and 21 inside 34. */
+  glyph?: number;
   className?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
 export default function GuardzMark({
   size = 74,
   radius = 20,
+  glyph,
   className,
   style,
 }: GuardzMarkProps) {
-  const glyph = size * (42 / 74);
+  const glyphSize = glyph ?? Math.round(size * (42 / 74));
 
   return (
     <span
@@ -21,27 +26,27 @@ export default function GuardzMark({
         width: size,
         height: size,
         borderRadius: radius,
-        backgroundImage: "var(--gradient-purple)",
+        backgroundImage: "var(--gradient-mark)",
+        boxShadow: "0 0 24px #654FE880",
         ...style,
       }}
       aria-label="Guardz"
       role="img"
     >
       <svg
-        width={glyph}
-        height={glyph}
-        viewBox="43 64 416 371"
-        preserveAspectRatio="xMidYMid meet"
+        width={glyphSize}
+        height={glyphSize}
+        viewBox="0 0 500 500"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <path
           d="M427.157 253.724L409.475 338.957H409.546L390.064 435.344L162.634 433.931C150.669 433.085 123.494 431.037 96.4589 405.344C96.4589 405.344 93.3531 402.239 89.4708 397.226C89.4708 397.226 82.3063 387.945 77.577 377.78C72.3183 366.38 65.8949 331.722 82.6945 295.017C100.623 255.877 137.152 231.384 143.187 236.077C147.351 239.289 134.435 253.619 135.705 280.406C136.094 288.524 136.94 305.781 149.787 320.287C151.587 322.299 163.764 335.675 183.563 338.534C187.586 339.099 191.01 339.134 193.41 339.027H318.454L335.748 255.665C341.113 229.901 366.17 208.831 391.616 208.69H391.899C397.016 208.69 401.851 209.537 406.192 211.231C411.486 213.207 416.075 216.419 419.675 220.584C419.993 220.936 420.275 221.254 420.557 221.607C427.299 230.112 429.628 241.512 427.051 253.795L427.157 253.724Z"
-          fill="white"
+          fill="#FFFFFF"
         />
         <path
           d="M457.295 111.669C454.154 126.491 444.66 139.656 432.377 148.161C423.096 154.656 412.19 158.468 401.284 158.326L247.794 156.809C231.347 157.515 217.795 159.244 208.195 160.761C178.266 165.491 143.079 177.985 104.08 203.996C95.5386 209.784 83.5742 218.995 71.645 232.513C55.3395 250.971 48.4221 266.853 44.1163 265.335C39.0341 263.535 43.4104 238.265 43.8693 235.83C59.3983 149.115 120.985 103.269 120.985 103.269C168.419 67.9401 214.971 64.799 234.559 64.6225L423.273 66.493C434.813 66.5989 444.766 71.2224 451.154 79.4456C457.789 87.9514 459.977 99.3864 457.365 111.669H457.295Z"
-          fill="white"
+          fill="#FFFFFF"
         />
       </svg>
     </span>

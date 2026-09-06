@@ -2,14 +2,12 @@ import { motion } from "motion/react";
 import { Scenario } from "../types";
 import RailLayout from "./RailLayout";
 import TechniqueCard from "./TechniqueCard";
-import RailStatCard from "./RailStatCard";
 import { listContainer } from "../lib/motion";
 
 interface SelectionScreenProps {
   scenarios: Scenario[];
   selectedIds: string[];
   onToggle: (id: string) => void;
-  onToggleAll: () => void;
   onRunSelected: () => void;
   onBack: () => void;
 }
@@ -18,67 +16,56 @@ export default function SelectionScreen({
   scenarios,
   selectedIds,
   onToggle,
-  onToggleAll,
   onRunSelected,
   onBack,
 }: SelectionScreenProps) {
   const total = scenarios.length;
   const count = selectedIds.length;
-  const allSelected = count === total;
-  const pct = total > 0 ? (count / total) * 100 : 0;
 
   return (
     <RailLayout
-      title={
-        <>
-          Choose the attacks
-          <br />
-          to simulate
-        </>
+      heading={
+        <div className="flex flex-col gap-4">
+          <h1 className="text-rail-title text-white">
+            Choose the attacks to simulate
+          </h1>
+          <p className="text-[18px] leading-[150%] tracking-[0.5px] text-[#FFFFFFBF]">
+            Pick the attacks you want to test against this endpoint, or run the
+            full suite. Every test is safe and self-cleaning.
+          </p>
+        </div>
       }
-      subtitle="Pick the attacks you want to test against this endpoint, or run the full suite. Every test is safe and self-cleaning."
-      railBottom={
-        <RailStatCard
-          label="Selected"
-          value={`${count} of ${total}`}
-          percent={pct}
-        />
-      }
-      railAction={
+      action={
         <button
           onClick={onBack}
-          className="flex cursor-pointer items-center gap-2 text-[13px] leading-4 font-medium text-white/70 transition-colors hover:text-white"
+          className="inline-flex cursor-pointer items-center gap-2 text-[13px] leading-4 font-medium text-[#FFFFFFB3] transition-colors hover:text-white"
         >
           <svg
-            className="h-4 w-4"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="currentColor"
+            stroke="rgb(255 255 255 / 60%)"
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <path d="M19 12H5M12 19l-7-7 7-7" />
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 19 5 12 12 5" />
           </svg>
-          Back to home
+          Back
         </button>
       }
     >
-      <header className="flex shrink-0 items-center justify-between px-[34px] pt-[26px] pb-4">
-        <h2 className="text-section-title text-white">Attack Techniques</h2>
-        <button
-          onClick={onToggleAll}
-          className="btn btn-secondary gap-2 px-[14px] py-2 text-[13px] leading-4"
-        >
-          {allSelected ? "Clear all" : "Select all"}
-        </button>
+      <header className="flex shrink-0 items-center gap-6 px-[34px] pt-6 pb-12">
+        <h2 className="text-canvas-title text-white">Attack Techniques</h2>
       </header>
 
       <motion.div
         variants={listContainer}
         initial="initial"
         animate="animate"
-        className="scrollbar-slim grid min-h-0 flex-1 auto-rows-min grid-cols-2 content-start gap-[14px] overflow-y-auto px-[34px] pt-[2px] pb-3"
+        className="scrollbar-none grid min-h-0 flex-1 auto-rows-min grid-cols-2 content-start gap-4 overflow-y-auto px-[34px] pt-0.5 pb-3"
       >
         {scenarios.map((scenario) => (
           <TechniqueCard
@@ -91,8 +78,8 @@ export default function SelectionScreen({
       </motion.div>
 
       <footer className="mt-auto flex shrink-0 items-center justify-between border-t border-[#A289FC33] px-[34px] py-4">
-        <span className="text-[14px] leading-[18px] font-medium text-text-dim">
-          {count} of {total} attacks selected
+        <span className="text-[14px] leading-[18px] font-medium text-guardz-off-white">
+          {count} of {total} techniques selected
         </span>
         <button
           onClick={onRunSelected}
@@ -101,15 +88,17 @@ export default function SelectionScreen({
         >
           Run {count > 0 ? `${count} ` : ""}Selected
           <svg
-            className="h-4 w-4"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="currentColor"
+            stroke="#FFFFFF"
             strokeWidth={2.2}
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <path d="M5 12h14M12 5l7 7-7 7" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
           </svg>
         </button>
       </footer>

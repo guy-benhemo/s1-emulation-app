@@ -5,35 +5,48 @@ interface GradeRingProps {
   /** 0–100 readiness score. */
   score: number;
   grade: string;
+  /** Ring colour. The board draws it on the grade's tone. */
+  color?: string;
   size?: number;
 }
 
-export default function GradeRing({ score, grade, size = 112 }: GradeRingProps) {
-  const stroke = 3;
-  const radius = size / 2 - stroke * 2;
+/** 124px ring, 9px stroke, r=52 — the dial in the rail on A6. */
+export default function GradeRing({
+  score,
+  grade,
+  color = "var(--color-brand-green)",
+  size = 124,
+}: GradeRingProps) {
+  const stroke = 9;
+  const radius = 52;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - Math.min(Math.max(score, 0), 100) / 100);
 
   return (
     <div
-      className="relative grid shrink-0 place-items-center"
+      className="relative flex shrink-0 items-center justify-center"
       style={{ width: size, height: size }}
     >
-      <svg width={size} height={size} className="-rotate-90">
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 124 124"
+        style={{ rotate: "-90deg", transformOrigin: "50% 50%" }}
+      >
         <circle
-          cx={size / 2}
-          cy={size / 2}
+          cx="62"
+          cy="62"
           r={radius}
           fill="none"
-          stroke="rgba(255,255,255,0.16)"
+          stroke="rgb(255 255 255 / 18%)"
           strokeWidth={stroke}
         />
         <motion.circle
-          cx={size / 2}
-          cy={size / 2}
+          cx="62"
+          cy="62"
           r={radius}
           fill="none"
-          stroke="rgba(255,255,255,0.92)"
+          stroke={color}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -42,7 +55,7 @@ export default function GradeRing({ score, grade, size = 112 }: GradeRingProps) 
           transition={{ duration: 1.2, ease: EASE_OUT }}
         />
       </svg>
-      <span className="absolute font-display text-[40px] leading-none font-light text-white/90">
+      <span className="absolute font-display text-[42px] leading-none font-bold text-white">
         {grade}
       </span>
     </div>

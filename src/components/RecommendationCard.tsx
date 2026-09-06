@@ -1,63 +1,58 @@
 import { motion } from "motion/react";
-import { Recommendation, Scenario } from "../types";
+import { Recommendation, Scenario, Severity } from "../types";
 import { listItem } from "../lib/motion";
 
 interface RecommendationCardProps {
   scenario: Scenario;
   recommendation: Recommendation;
-  onPlanFix: () => void;
 }
+
+/** Left rule and pill per severity, off the recommendation rows on A6. */
+const TONE: Record<Severity, { rule: string; pill: string; text: string }> = {
+  High: { rule: "#B0284F", pill: "#B0284F38", text: "#FF8FA8" },
+  Medium: { rule: "#C2410C", pill: "#FC528133", text: "#F5AB65" },
+  Low: { rule: "#C2410C", pill: "#FC528133", text: "#F5AB65" },
+};
 
 export default function RecommendationCard({
   scenario,
   recommendation,
-  onPlanFix,
 }: RecommendationCardProps) {
-  const high = recommendation.severity === "High";
+  const tone = TONE[recommendation.severity];
 
   return (
     <motion.article
       variants={listItem}
-      className="relative flex items-center gap-6 overflow-hidden rounded-[14px] border border-white/8 bg-white/[0.02] py-4 pr-5 pl-6"
+      style={{
+        backgroundImage: "var(--gradient-rec)",
+        borderLeftColor: tone.rule,
+      }}
+      className="flex shrink-0 gap-4 rounded-[18px] border border-[#A289FC59] border-l-4 border-solid bg-origin-border px-[18px] py-3.5"
     >
-      <span
-        className={`absolute inset-y-0 left-0 w-[3px] ${
-          high ? "bg-guardz-pink" : "bg-guardz-pink/60"
-        }`}
-      />
-
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-[9px]">
+        <div className="flex flex-wrap items-center gap-[9px]">
           <span
-            className={`rounded-full px-2.5 py-1 text-[12px] font-medium ${
-              high
-                ? "bg-guardz-pink/18 text-guardz-pink"
-                : "bg-guardz-pink/12 text-guardz-pink/85"
-            }`}
+            className="inline-flex items-center rounded-full px-2.5 py-[3px] text-[13px] leading-4 font-bold"
+            style={{ backgroundColor: tone.pill, color: tone.text }}
           >
             {recommendation.severity} severity
           </span>
-          <h3 className="text-[16px] font-bold text-white">{scenario.name}</h3>
-          <span className="font-mono text-[12px] text-guardz-light-gray/70">
+          <h3 className="text-[18px] leading-[23px] font-bold text-white">
+            {scenario.name}
+          </h3>
+          <span className="font-mono text-[13px] leading-4 text-text-dim">
             {scenario.mitreId}
           </span>
         </div>
 
-        <p className="text-[15px] leading-[22px] text-guardz-light-gray">
+        <p className="text-[16px] leading-6 text-text-soft">
           {recommendation.action}
         </p>
 
-        <p className="text-[13px] text-guardz-medium-gray">
+        <p className="text-[14px] leading-[18px] text-text-dim">
           Impact: {recommendation.impact}
         </p>
       </div>
-
-      <button
-        onClick={onPlanFix}
-        className="btn btn-secondary shrink-0 px-4 py-2 text-[13px] leading-4"
-      >
-        Plan fix
-      </button>
     </motion.article>
   );
 }

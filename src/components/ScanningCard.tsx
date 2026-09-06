@@ -4,23 +4,17 @@ import { Scenario } from "../types";
 import { statusSwap } from "../lib/motion";
 
 const MESSAGES = [
-  "Probing for security gaps...",
-  "Testing endpoint defenses...",
-  "Watching for detection response...",
-  "Measuring mitigation behaviour...",
+  "Probing for security gaps…",
+  "Testing endpoint defenses…",
+  "Watching for detection response…",
+  "Measuring mitigation behaviour…",
 ];
 
 interface ScanningCardProps {
   scenario: Scenario;
-  index: number;
-  total: number;
 }
 
-export default function ScanningCard({
-  scenario,
-  index,
-  total,
-}: ScanningCardProps) {
+export default function ScanningCard({ scenario }: ScanningCardProps) {
   const [messageIndex, setMessageIndex] = useState(0);
 
   useEffect(() => {
@@ -32,41 +26,40 @@ export default function ScanningCard({
   }, []);
 
   return (
-    <div className="flex flex-col items-center px-14 py-11">
-      <div className="flex items-center gap-3.5">
-        <span className="rounded-full bg-guardz-light-purple/18 px-2.5 py-1 text-[12px] font-medium text-guardz-bright-purple">
-          {scenario.category}
-        </span>
-        <span className="text-[14px] text-guardz-light-gray">
-          Test {index + 1} of {total}
-        </span>
-      </div>
-
-      <h2 className="text-card-title mt-5 text-center text-white">
+    <div
+      className="flex w-[640px] max-w-full flex-col items-center gap-[18px] rounded-[22px] border border-[#A289FC66] bg-origin-border px-[34px] py-8 shadow-[0_0_40px_#654FE826]"
+      style={{ backgroundImage: "var(--gradient-panel)" }}
+    >
+      <h2 className="text-card-title text-center text-white">
         {scenario.name}
       </h2>
 
-      <p className="mt-3 text-center text-[16px] leading-[24px] text-guardz-light-gray">
+      <p className="max-w-[440px] text-center text-[16px] leading-6 text-text-dim">
         {scenario.question}
       </p>
 
-      <div className="relative mt-8 h-[5px] w-[340px] overflow-hidden rounded-full bg-white/8">
-        <div className="animate-scan-sweep absolute inset-y-0 left-0 w-1/3 rounded-full bg-[linear-gradient(90deg,transparent,#7659F5_35%,#A289FC_65%,transparent)]" />
-      </div>
+      <div className="mt-1.5 flex w-[340px] max-w-full flex-col items-center gap-[13px]">
+        <div className="relative h-1.75 w-full overflow-hidden rounded-full bg-[#A289FC24]">
+          <div
+            className="animate-scan-sweep absolute inset-y-0 left-0 w-[38%] rounded-full shadow-[0_0_14px_#654FE899]"
+            style={{ backgroundImage: "var(--gradient-bar)" }}
+          />
+        </div>
 
-      <div className="mt-5 h-[24px] overflow-hidden">
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={messageIndex}
-            variants={statusSwap}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            className="text-[15px] text-guardz-light-purple"
-          >
-            {MESSAGES[messageIndex]}
-          </motion.p>
-        </AnimatePresence>
+        <div className="h-[18px] overflow-hidden">
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={messageIndex}
+              variants={statusSwap}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="text-center text-[14px] leading-[18px] font-medium text-guardz-light-purple"
+            >
+              {MESSAGES[messageIndex]}
+            </motion.p>
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );

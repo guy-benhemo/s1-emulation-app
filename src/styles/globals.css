@@ -6,8 +6,10 @@
 @theme {
   --default-font-family: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Red Hat Display Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
+  --font-display:
+    "Red Hat Display Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
 
   /* Guardz palette */
   --color-guardz-purple: #654fe8;
@@ -17,7 +19,9 @@
   --color-guardz-light-purple: #a289fc;
   --color-guardz-bright-purple: #b9a6ff;
   --color-guardz-lavender: #f1edff;
+  --color-guardz-off-white: #faf9f6;
   --color-guardz-pink: #fc5281;
+  --color-guardz-dark-red: #b0284f;
 
   /* Dark system surfaces */
   --color-base: #0b0819;
@@ -25,12 +29,45 @@
   --color-surface-raised: #1b153e;
   --color-text-soft: #e6e6e6;
   --color-text-dim: #b9b9be;
+
+  /* The "blocked / safe" accent. The dark boards map it to light purple. */
+  --color-brand-green: #a289fc;
 }
 
 :root {
-  /* The one purple gradient, taken verbatim from guardz.com. */
-  --gradient-purple: linear-gradient(262deg, #654fe8 43.32%, #2f2472 100%);
-  /* Option-tile fills, taken from the technique cards on A2. */
+  /* Buttons and bars — the 43% stop, taken verbatim from guardz.com. */
+  --gradient-purple: linear-gradient(
+    in oklab 262deg,
+    oklab(54.3% 0.049 -0.214) 43.32%,
+    oklab(32.6% 0.029 -0.125) 100%
+  );
+  /* The same two stops run left-to-right. guardz.com crossfades to this on
+     hover, which reads as the gradient swinging across the button. */
+  --gradient-purple-hover: linear-gradient(
+    in oklab 90deg,
+    oklab(54.3% 0.049 -0.214) 43.32%,
+    oklab(32.6% 0.029 -0.125) 100%
+  );
+  /* Marks, check tiles and pills use the same ramp from 0%. */
+  --gradient-mark: linear-gradient(
+    in oklab 262deg,
+    oklab(54.3% 0.049 -0.214) 0%,
+    oklab(32.6% 0.029 -0.125) 100%
+  );
+  /* The compare column's head — the same two brand stops run vertically so
+     the cap dissolves into the column body under it. */
+  --gradient-cap: linear-gradient(
+    in oklab 180deg,
+    oklab(54.3% 0.049 -0.214) 0%,
+    oklab(32.6% 0.029 -0.125) 100%
+  );
+  /* Progress fills, left to right. */
+  --gradient-bar: linear-gradient(
+    in oklab 90deg,
+    oklab(70.2% 0.061 -0.153) 0%,
+    oklab(54.3% 0.049 -0.214) 100%
+  );
+  /* Option-tile fills, from the technique cards on A2. */
   --gradient-tile-on: linear-gradient(
     in oklab 180deg,
     oklab(54.3% 0.049 -0.214 / 22%) 0%,
@@ -41,14 +78,68 @@
     oklab(70.2% 0.061 -0.153 / 6%) 0%,
     oklab(70.2% 0.061 -0.153 / 2%) 100%
   );
+  /* Panels on the grid — execution card, completed chips (A3–A5). */
+  --gradient-panel: linear-gradient(
+    in oklab 180deg,
+    oklab(70.2% 0.061 -0.153 / 5%) 0%,
+    oklab(70.2% 0.061 -0.153 / 2%) 100%
+  );
+  /* Stat tiles and recommendation rows (A6) — the ramp runs the other way. */
+  --gradient-stat: linear-gradient(
+    in oklab 180deg,
+    oklab(70.2% 0.061 -0.153 / 3%) 0%,
+    oklab(70.2% 0.061 -0.153 / 10%) 100%
+  );
+  --gradient-rec: linear-gradient(
+    in oklab 180deg,
+    oklab(70.2% 0.061 -0.153 / 2%) 0%,
+    oklab(70.2% 0.061 -0.153 / 8%) 100%
+  );
+  /* The "See how Guardz compares" band on A6. */
+  --gradient-band: linear-gradient(
+    in oklab 120deg,
+    oklab(54.3% 0.049 -0.214 / 22%) 0%,
+    oklab(70.2% 0.061 -0.153 / 10%) 100%
+  );
+  /* The full-bleed demo band on A7. */
+  --gradient-cta: linear-gradient(
+    in oklab 120deg,
+    oklab(54.3% 0.049 -0.214) 0%,
+    oklab(46% 0.037 -0.2) 52%,
+    oklab(32.6% 0.029 -0.125) 100%
+  );
+  /* The comparison table's Guardz column (A7). */
+  --gradient-column: linear-gradient(
+    in oklab 135deg,
+    oklab(54.3% 0.049 -0.214 / 32%) 0%,
+    oklab(32.6% 0.029 -0.125 / 14%) 100%
+  );
+  /* Undetected verdict (A5). */
+  --gradient-danger: linear-gradient(
+    in oklab 150deg,
+    oklab(68.3% 0.205 0.028) 0%,
+    oklab(50.6% 0.17 0.028) 100%
+  );
+  --gradient-danger-bar: linear-gradient(
+    in oklab 90deg,
+    oklab(68.3% 0.205 0.028) 0%,
+    oklab(50.6% 0.17 0.028) 100%
+  );
+  /* Undetected chip fill in "Recently completed". */
+  --gradient-chip-danger: linear-gradient(
+    in oklab 180deg,
+    oklab(68.3% 0.205 0.028 / 8%) 0%,
+    oklab(70.2% 0.061 -0.153 / 2%) 100%
+  );
 }
 
 /* ──────────────────────────────────────────────────────────────
-   Buttons — measured off guardz.com (and matching "DS / 04
-   Components"). Flat: radius 8, no shadow, Inter 500, 0.5px
-   tracking. Sizing is applied per instance.
+   Buttons — measured off the A1–A7 boards. Radius 10, no
+   tracking, weight per variant. Sizing is applied per instance.
    ────────────────────────────────────────────────────────────── */
 
+/* Radius, weight and tracking are the live guardz.com button, not our own
+   invention: r8, Inter 500, 0.5px. */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -59,7 +150,9 @@
   letter-spacing: 0.5px;
   white-space: nowrap;
   cursor: pointer;
-  transition: filter 150ms ease;
+  position: relative;
+  isolation: isolate;
+  transition: background-color 500ms ease;
 }
 
 .btn:disabled {
@@ -67,8 +160,35 @@
   opacity: 0.4;
 }
 
-.btn:not(:disabled):hover {
-  filter: brightness(1.1);
+/* Gradients are not interpolable, so the hover fill is a second layer that
+   fades in over the first — the mechanism guardz.com itself uses. The layer
+   sits inside the border box and under the label. */
+.btn-primary::after,
+.btn-secondary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 500ms ease;
+}
+
+.btn-primary::after {
+  background-image: var(--gradient-purple-hover);
+}
+
+.btn-secondary::after {
+  background-image: var(--gradient-purple);
+}
+
+.btn-primary:not(:disabled):hover::after,
+.btn-secondary:not(:disabled):hover::after {
+  opacity: 1;
+}
+
+.btn-light:not(:disabled):hover {
+  background-color: var(--color-guardz-lavender);
 }
 
 .btn-primary {
@@ -77,23 +197,25 @@
   background-image: var(--gradient-purple);
 }
 
-.btn-secondary {
-  color: #ffffff;
-  background-color: #654fe81a;
-  background-image: linear-gradient(
-    262deg,
-    rgba(255, 255, 255, 0.1) 43.32%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  border: 2px solid var(--color-guardz-dark-purple);
-}
-
+/* The report action on A6 — white slab, indigo label. Weight, tracking and
+   radius come from .btn. */
 .btn-light {
   color: var(--color-guardz-dark-purple);
   background-color: #ffffff;
 }
 
-/* ── Typography helpers used across the boards ── */
+.btn-secondary {
+  color: #ffffff;
+  background-color: #654fe81a;
+  background-image: linear-gradient(
+    in oklab 262deg,
+    oklab(100% 0 0 / 10%) 43.32%,
+    oklab(100% 0 0 / 0%) 100%
+  );
+  border: 2px solid var(--color-guardz-dark-purple);
+}
+
+/* ── Typography helpers, one per board role ── */
 
 @utility text-display-hero {
   font-family: var(--font-display);
@@ -103,6 +225,43 @@
   letter-spacing: 0.5px;
 }
 
+/* A7 headline. */
+@utility text-compare-hero {
+  font-family: var(--font-display);
+  font-size: 44px;
+  line-height: 50px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+/* Rail headline on A2–A5. */
+@utility text-rail-title {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 40px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* Rail headline on A6. */
+@utility text-report-title {
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* Canvas heading on A2. */
+@utility text-canvas-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* Canvas heading on A6. */
 @utility text-section-title {
   font-family: var(--font-display);
   font-size: 22px;
@@ -119,7 +278,7 @@
   letter-spacing: 0.3px;
 }
 
-/* Scenario name on the execution card (A3–A5). */
+/* Scenario name while scanning (A3). */
 @utility text-card-title {
   font-family: var(--font-display);
   font-size: 30px;
@@ -128,24 +287,26 @@
   letter-spacing: 0.3px;
 }
 
-@utility text-verdict-label {
+/* Scenario name on a verdict (A4, A5). */
+@utility text-verdict-title {
   font-family: var(--font-display);
-  font-size: 26px;
+  font-size: 28px;
   line-height: 34px;
   font-weight: 700;
   letter-spacing: 0.3px;
 }
 
-@utility text-rail-title {
+@utility text-verdict-label {
   font-family: var(--font-display);
-  font-size: 34px;
-  line-height: 40px;
+  font-size: 24px;
+  line-height: 28px;
   font-weight: 700;
-  letter-spacing: 0.3px;
 }
 
 /* ── Motion: only the two loops that signal live activity ── */
 
+/* The sweep bar is 38% of the track on A3, so a full traverse is
+   -100% to 263.2% of its own width. */
 @keyframes scan-sweep {
   0% {
     transform: translateX(-100%);
@@ -158,7 +319,7 @@
     opacity: 1;
   }
   100% {
-    transform: translateX(100%);
+    transform: translateX(263.2%);
     opacity: 0;
   }
 }
@@ -183,22 +344,48 @@
   animation: dot-pulse 1.5s ease-in-out infinite;
 }
 
+/* The 88px lattice from "DS / 02". Alpha varies per board, so the
+   colour is driven by a variable the backdrop sets. */
 @utility bg-grid {
   background-image:
-    linear-gradient(to right, rgba(162, 137, 252, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(162, 137, 252, 0.05) 1px, transparent 1px);
-  background-size: 108px 108px;
+    linear-gradient(
+      to right,
+      rgb(162 137 252 / var(--grid-alpha, 0.12)) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      rgb(162 137 252 / var(--grid-alpha, 0.12)) 1px,
+      transparent 1px
+    );
+  background-size: 88px 88px;
 }
 
-@utility scrollbar-slim {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(162, 137, 252, 0.25) transparent;
+/* The boards have no scrollbar on any screen, and a desktop shell that
+   overflows by a few pixels shouldn't grow one. Panes still scroll. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
 }
 
 html,
 body,
 #root {
   height: 100%;
+  overflow: hidden;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 body {

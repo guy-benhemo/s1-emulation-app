@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Generated in CI by the Windows signing job
+src-tauri/tauri.signing.conf.json
+
+# Local agent skill packs
+.agents/
