@@ -2,7 +2,9 @@
 
 Validated on 2026-09-06. Source branch: `feature/dark-redesign-and-pdf-export`.
 The integration includes upstream feature-branch changes through `71d8860`.
-The local main branch was not modified. These changes have not been pushed.
+The local main branch was not modified. This validation snapshot was recorded
+before publication; review and CI status are tracked by the pull request in
+`guardzcom/edr-attack-simulator`.
 
 ## Destination And Reporting
 
@@ -54,7 +56,7 @@ intact. The reviewer confirmed the correction addresses the finding.
 
 ## Before Distribution
 
-1. Obtain approval to push the existing feature branch and run Windows CI.
+1. Review the feature-branch pull request and confirm Windows CI passes.
 2. Verify the new Windows installer builds and launches on an authorized Windows
    test machine. Keep any validation data out of production reporting.
 3. Validate first/repeat launch, completed/cancelled runs, PDF save/cancel/error,

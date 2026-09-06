@@ -173,9 +173,9 @@ signs during bundling, and then verifies every `.exe` and `.msi` with
 `Get-AuthenticodeSignature` — an installer that is not genuinely signed fails
 the build rather than shipping.
 
-Note this repo currently lives under the personal `guy-benhemo` account rather
-than the `guardzcom` org. Pointing Guardz Azure credentials at a personal repo
-is a governance decision worth settling before this is switched on.
+Configure these GitHub variables and secrets in the company repository,
+`guardzcom/edr-attack-simulator`. The signing gate and Azure configuration are
+unchanged by the analytics integration.
 
 ### What signing does and does not fix
 
