@@ -3,7 +3,7 @@
 ## Review Corrections (2026-09-08)
 
 The company branch `feature/posthog-review-fixes` includes the original PR head
-`b94467b` plus two corrections:
+`b94467b` plus the review corrections:
 
 - CI labels only `main` as production. Feature installers are development/test
   traffic regardless of compiler optimization. `EDR_ANALYTICS_TEST=true` also
@@ -14,7 +14,51 @@ The company branch `feature/posthog-review-fixes` includes the original PR head
 Local native tests: ten passed, one live test intentionally ignored. Regression
 coverage includes release-channel defaults, a production QA override, malformed
 JSON, unreadable entries, invalid event UUIDs, and subsequent healthy reads.
-Windows build and UTM runtime acceptance are pending for this revision.
+The existing full-outbox test also explicitly restores blocking mode on its
+accepted TCP socket, fixing the Windows-only `WouldBlock` failure.
+
+## Windows Acceptance (2026-09-08)
+
+Tested application commit: `95683bb3770ff10bcdeb7328f5c33aebd3faadaa`.
+[Windows CI run 34222727341](https://github.com/guardzcom/edr-attack-simulator/actions/runs/34222727341)
+passed native analytics tests and built both installers. The unsigned NSIS x64
+installer was installed successfully in the user's UTM Windows 11 Home ARM64 VM
+(build 26100), running through Windows x64 emulation. This is not native x64
+hardware validation or signed-release validation.
+
+Installer SHA-256:
+`e20753ba62fad430a110aeb9fabaf5c8177b901ce4adb4461915f1d47860bc0f`.
+
+Runtime checks passed:
+
+- First launch, repeated launch, and stable anonymous installation identity.
+  Three offline sessions produced one first-open event and three app-open events.
+- Completed Base64-only scans and cancelled scans. Cancelled run IDs had no
+  scan-completed event. No full scenario-suite acceptance is claimed.
+- PDF Save As cancellation and successful save. Both Letter-sized pages were
+  rendered and visually inspected; the embedded CTA uses `utm_medium=pdf_report`.
+- Comparison view and demo CTA; Edge opened the actual Guardz demo page with
+  desktop-app UTM parameters. No form was submitted.
+- A temporary outbound firewall rule scoped to the installed app retained 20
+  healthy events across restarts. All nine event names were present, all marked
+  `is_test=true`, `release_channel=development`, and `platform=windows`, without
+  setting the runtime QA override. Original queued event IDs/timestamps survived.
+- A malformed fixture was quarantined as `.invalid`, while valid events remained
+  readable. After removing the rule and reopening the app, all pending JSON
+  entries drained; only the quarantined fixture remained. The delivery code
+  removes an entry only after the SDK acknowledges one submitted/persisted event.
+- The temporary firewall rule was removed, all firewall profiles remained
+  enabled, and the desktop shortcut now points to the tested installation.
+
+One extra keyboard action during cancellation testing started the all-scenario
+flow. It was cancelled after the first Certutil scenario; its temporary folder
+was absent in the cleanup check. This run is included in the QA event counts.
+
+Limits: SDK acknowledgement was verified, but this Windows run was not read back
+independently from the authenticated PostHog dashboard/API. The native PDF error
+path was not exercised. No production merge or distribution was performed.
+Local evidence (event snapshots, screenshots, PDF, and delivery checks) is in
+`/tmp/edr-windows-validation` on the validation Mac.
 
 ## Original Integration Evidence
 
@@ -73,6 +117,10 @@ and passed after it. It also verifies rejected delivery leaves queued events
 intact. The reviewer confirmed the correction addresses the finding.
 
 ## Before Distribution
+
+The checklist below is retained from the original integration. The Windows
+checks above supersede its pending build/runtime status; PDF error-path testing,
+independent Windows-event readback, and release approval remain outstanding.
 
 1. Review the feature-branch pull request and confirm Windows CI passes.
 2. Verify the new Windows installer builds and launches on an authorized Windows
