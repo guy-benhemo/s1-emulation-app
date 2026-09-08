@@ -6,7 +6,7 @@ import { Scenario, Severity } from "../types";
 import { getOutcome } from "../utils/verdict";
 import { getRecommendation } from "../data/recommendations";
 import { TARGET_HOST, TARGET_IP } from "../data/scenarios";
-import { DEMO_URL } from "./links";
+import { REPORT_DEMO_URL } from "./links";
 
 /**
  * The readiness report expressed in the composer's blocks, so it renders
@@ -179,7 +179,7 @@ export function buildReportDocument({
       type: "cta" as const,
       lead: "See how Guardz blocks every one of these attacks.",
       primaryLabel: "Book a Demo",
-      primaryUrl: DEMO_URL,
+      primaryUrl: REPORT_DEMO_URL,
       secondaryLabel: "",
       secondaryUrl: "",
     },

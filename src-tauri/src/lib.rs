@@ -1,5 +1,8 @@
+mod analytics;
+
 use serde::Serialize;
 use std::time::{Duration, Instant};
+use tauri::Manager;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -638,10 +641,20 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let analytics = analytics::AnalyticsState::new(app.handle()).unwrap_or_else(|error| {
+                eprintln!("Analytics disabled because app data is unavailable: {error}");
+                analytics::AnalyticsState::disabled()
+            });
+            analytics.capture_startup();
+            app.manage(analytics);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             execute_scenario,
             reset_scenarios,
-            save_report_pdf
+            save_report_pdf,
+            analytics::track_event
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

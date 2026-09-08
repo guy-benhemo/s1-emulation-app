@@ -11,6 +11,10 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      POSTHOG_PROJECT_TOKEN: phc_u397JhUZeJnPLC4qx3F3esj2VpF4giQt293W2ptnZuUG
+      POSTHOG_HOST: https://us.i.posthog.com
+      EDR_RELEASE_CHANNEL: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +35,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Test native analytics
+        run: cargo test --manifest-path src-tauri/Cargo.toml analytics::tests
 
       # Signing is gated on two things: the ref must be main, and the repo
       # variable AZURE_SIGNING_ENABLED must be "true". Until that variable is

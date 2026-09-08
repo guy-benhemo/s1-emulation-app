@@ -39,6 +39,91 @@ npm run dev            # Frontend only (no Tauri window)
 npx tsc --noEmit       # TypeScript check
 ```
 
+## Product analytics
+
+The Windows build sends personless product events through the native Rust
+backend using the official `posthog-rs` SDK. Events are validated against a
+fixed schema and written to an app-data outbox before delivery, so a temporary
+network failure does not lose the measurement trail.
+
+Windows CI builds target [EDR App (Marketing), project 596248](https://us.posthog.com/project/596248/home).
+Reporting: [EDR Desktop Measurement](https://us.posthog.com/project/596248/dashboard/2069605).
+Validation evidence and remaining Windows acceptance checks are in
+[analytics verification](docs/analytics-verification.md).
+The Windows workflow supplies its public ingestion token and the US ingestion
+host at job level, covering both signed and unsigned builds. The token can send
+events but cannot read project data or administer the account. It is not a
+personal API key or project secret.
+
+Local builds omit telemetry when `POSTHOG_PROJECT_TOKEN` is unset. Never add a
+PostHog personal API key or project secret key to the application.
+
+For an explicitly measured local build, set `POSTHOG_PROJECT_TOKEN` to the
+project's public token. `POSTHOG_HOST` defaults to `https://us.i.posthog.com`.
+The build must be rebuilt after changing these values because Rust embeds them
+at compile time. No browser GTM container is installed in the desktop app.
+
+Captured events:
+
+- `edr_app_first_open`
+- `edr_app_opened`
+- `edr_scan_started`
+- `edr_scenario_completed`
+- `edr_scan_cancelled`
+- `edr_scan_completed`
+- `edr_report_exported`
+- `edr_comparison_viewed`
+- `edr_demo_clicked`
+
+The event schema excludes PowerShell output, errors, hostnames, usernames, IP
+address properties, and report paths. PostHog GeoIP enrichment is disabled.
+
+All events carry `app_surface=edr_attack_simulator`, `app_version`, `platform`,
+`release_channel`, `installation_id`, `session_id`, and `is_test`. Production
+reporting should exclude `is_test=true` and `release_channel=development`.
+The Windows workflow sets `EDR_RELEASE_CHANNEL=production` only for `main`.
+Feature-branch installers use `development` and `is_test=true`, even though
+they are compiled in release mode. Local builds default to development unless
+`EDR_RELEASE_CHANNEL=production` is explicitly set at compile time.
+To test a production installer, launch it with the runtime environment variable
+`EDR_ANALYTICS_TEST=true` (or `1`) so all new events are marked as test traffic.
+This override cannot turn development traffic into production traffic, and it
+does not relabel events already stored in the outbox.
+`edr_app_first_open` measures first launch, not a completed installer or download.
+Use `report_status=saved` when counting successfully exported reports.
+
+Demo links preserve `utm_source=edr_attack_sim` and add
+`utm_campaign=s1_simulation`. The app uses `utm_medium=desktop_app` and
+`utm_content=compare_screen`; exported PDFs use `utm_medium=pdf_report` and
+`utm_content=report_cta`. These identify traffic returning from the tool. They do
+not carry the original ad-click attribution from the website into the installed
+app, join users across PostHog projects, or send advertising-platform conversions.
+Those require a separately agreed identity/attribution handoff.
+
+### Verification
+
+Run `npm run build` and `cargo test --manifest-path src-tauri/Cargo.toml`.
+The Windows workflow also runs native analytics unit tests before building.
+The ignored `live_posthog_smoke_test` sends exactly nine synthetic events through
+the actual Rust queue and SDK, without launching the UI or executing scenarios:
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml live_posthog_smoke_test -- --ignored --nocapture
+```
+
+It requires `POSTHOG_SMOKE_TOKEN` explicitly in the environment. Every emitted
+event has `is_test=true`, the real host platform, and a fresh anonymous installation
+ID printed for readback. Delivery acknowledgement alone is not ingestion proof;
+verify all nine events in PostHog before declaring the connection working.
+
+Events still awaiting delivery remain in the local outbox and are retried on
+the next tracked action or app launch. The outbox is capped at 1,000 events;
+additional events are not stored when full. Offline capture is not unlimited,
+and permanently blocked network access cannot deliver analytics.
+Malformed or unreadable event files are skipped individually and renamed with
+an `.invalid` extension when possible, allowing healthy events to continue.
+These quarantined files are retained locally for diagnosis and are not sent.
+
 ## Tech Stack
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS 4, Framer Motion
@@ -99,9 +184,9 @@ signs during bundling, and then verifies every `.exe` and `.msi` with
 `Get-AuthenticodeSignature` — an installer that is not genuinely signed fails
 the build rather than shipping.
 
-Note this repo currently lives under the personal `guy-benhemo` account rather
-than the `guardzcom` org. Pointing Guardz Azure credentials at a personal repo
-is a governance decision worth settling before this is switched on.
+Configure these GitHub variables and secrets in the company repository,
+`guardzcom/edr-attack-simulator`. The signing gate and Azure configuration are
+unchanged by the analytics integration.
 
 ### What signing does and does not fix
 
