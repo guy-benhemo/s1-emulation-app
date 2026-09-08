@@ -54,9 +54,36 @@ One extra keyboard action during cancellation testing started the all-scenario
 flow. It was cancelled after the first Certutil scenario; its temporary folder
 was absent in the cleanup check. This run is included in the QA event counts.
 
-Limits: SDK acknowledgement was verified, but this Windows run was not read back
-independently from the authenticated PostHog dashboard/API. The native PDF error
-path was not exercised. No production merge or distribution was performed.
+### Independent PostHog Readback
+
+On 2026-09-08, the authenticated Aside browser session queried PostHog project
+596248 for installation `ffa406c1-7c50-420a-bfc7-2e4343ef1f3e`. The persisted
+results matched the Windows build's locally recorded event UUIDs, including
+first-open UUID `aaeac58b-a249-48e0-a598-30deabe60d9d`.
+
+| Event | Persisted count |
+| --- | ---: |
+| edr_app_first_open | 1 |
+| edr_app_opened | 4 |
+| edr_scan_started | 4 |
+| edr_scenario_completed | 3 |
+| edr_scan_completed | 2 |
+| edr_scan_cancelled | 2 |
+| edr_report_exported | 3 |
+| edr_comparison_viewed | 1 |
+| edr_demo_clicked | 1 |
+
+All 21 events had the expected installation ID, `is_test=true`,
+`release_channel=development`, and `platform=windows`. The additional app-open
+is the fourth launch that flushed the queue. Reports split into one saved and
+two cancelled. Both cancelled run IDs had zero scan-completed events.
+PostHog event timestamps span 12:06:16–12:22:30 UTC, with small server timestamp
+adjustments relative to the local queue; UUIDs provide the exact correspondence.
+The app build was established from installer provenance, not an event commit
+property. No dashboard configuration was changed during verification.
+
+Limits: the native PDF error path was not exercised. No production merge or
+distribution was performed.
 Local evidence (event snapshots, screenshots, PDF, and delivery checks) is in
 `/tmp/edr-windows-validation` on the validation Mac.
 
@@ -119,8 +146,9 @@ intact. The reviewer confirmed the correction addresses the finding.
 ## Before Distribution
 
 The checklist below is retained from the original integration. The Windows
-checks above supersede its pending build/runtime status; PDF error-path testing,
-independent Windows-event readback, and release approval remain outstanding.
+checks above supersede its pending build/runtime status; PDF error-path testing
+and release approval remain outstanding. Independent Windows-event readback
+passed as recorded above.
 
 1. Review the feature-branch pull request and confirm Windows CI passes.
 2. Verify the new Windows installer builds and launches on an authorized Windows
