@@ -81,6 +81,14 @@ address properties, and report paths. PostHog GeoIP enrichment is disabled.
 All events carry `app_surface=edr_attack_simulator`, `app_version`, `platform`,
 `release_channel`, `installation_id`, `session_id`, and `is_test`. Production
 reporting should exclude `is_test=true` and `release_channel=development`.
+The Windows workflow sets `EDR_RELEASE_CHANNEL=production` only for `main`.
+Feature-branch installers use `development` and `is_test=true`, even though
+they are compiled in release mode. Local builds default to development unless
+`EDR_RELEASE_CHANNEL=production` is explicitly set at compile time.
+To test a production installer, launch it with the runtime environment variable
+`EDR_ANALYTICS_TEST=true` (or `1`) so all new events are marked as test traffic.
+This override cannot turn development traffic into production traffic, and it
+does not relabel events already stored in the outbox.
 `edr_app_first_open` measures first launch, not a completed installer or download.
 Use `report_status=saved` when counting successfully exported reports.
 
@@ -112,6 +120,9 @@ Events still awaiting delivery remain in the local outbox and are retried on
 the next tracked action or app launch. The outbox is capped at 1,000 events;
 additional events are not stored when full. Offline capture is not unlimited,
 and permanently blocked network access cannot deliver analytics.
+Malformed or unreadable event files are skipped individually and renamed with
+an `.invalid` extension when possible, allowing healthy events to continue.
+These quarantined files are retained locally for diagnosis and are not sent.
 
 ## Tech Stack
 

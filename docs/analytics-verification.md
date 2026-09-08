@@ -1,5 +1,23 @@
 # Desktop Analytics Verification
 
+## Review Corrections (2026-09-08)
+
+The company branch `feature/posthog-review-fixes` includes the original PR head
+`b94467b` plus two corrections:
+
+- CI labels only `main` as production. Feature installers are development/test
+  traffic regardless of compiler optimization. `EDR_ANALYTICS_TEST=true` also
+  marks new events from a production installer as test traffic.
+- A malformed or unreadable outbox entry no longer stops healthy delivery.
+  Invalid entries are renamed to `.invalid` when possible and retained locally.
+
+Local native tests: ten passed, one live test intentionally ignored. Regression
+coverage includes release-channel defaults, a production QA override, malformed
+JSON, unreadable entries, invalid event UUIDs, and subsequent healthy reads.
+Windows build and UTM runtime acceptance are pending for this revision.
+
+## Original Integration Evidence
+
 Validated on 2026-09-06. Source branch: `feature/dark-redesign-and-pdf-export`.
 The integration includes upstream feature-branch changes through `71d8860`.
 The local main branch was not modified. This validation snapshot was recorded

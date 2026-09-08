@@ -40,6 +40,8 @@ pub struct AnalyticsState(Arc<AnalyticsInner>);
 struct AnalyticsInner {
     project_token: Option<String>,
     host: String,
+    release_channel: &'static str,
+    is_test: bool,
     installation_id: String,
     session_id: String,
     first_open_marker: PathBuf,
@@ -70,10 +72,16 @@ impl AnalyticsState {
             .filter(|host| !host.is_empty())
             .unwrap_or(DEFAULT_POSTHOG_HOST)
             .to_owned();
+        let (release_channel, is_test) = analytics_environment(
+            option_env!("EDR_RELEASE_CHANNEL"),
+            std::env::var("EDR_ANALYTICS_TEST").ok().as_deref(),
+        );
 
         Ok(Self(Arc::new(AnalyticsInner {
             project_token,
             host,
+            release_channel,
+            is_test: is_test || cfg!(test),
             installation_id,
             session_id: Uuid::new_v4().to_string(),
             first_open_marker: data_dir.join("analytics-first-open-queued"),
@@ -88,6 +96,8 @@ impl AnalyticsState {
         Self(Arc::new(AnalyticsInner {
             project_token: None,
             host: DEFAULT_POSTHOG_HOST.to_owned(),
+            release_channel: "development",
+            is_test: true,
             installation_id: Uuid::new_v4().to_string(),
             session_id: Uuid::new_v4().to_string(),
             first_open_marker: PathBuf::new(),
@@ -151,17 +161,10 @@ impl AnalyticsState {
             "app_surface".to_owned(),
             Value::String("edr_attack_simulator".to_owned()),
         );
-        properties.insert("is_test".to_owned(), Value::Bool(cfg!(test)));
+        properties.insert("is_test".to_owned(), Value::Bool(self.0.is_test));
         properties.insert(
             "release_channel".to_owned(),
-            Value::String(
-                if cfg!(debug_assertions) {
-                    "development"
-                } else {
-                    "production"
-                }
-                .to_owned(),
-            ),
+            Value::String(self.0.release_channel.to_owned()),
         );
         properties.insert(
             "installation_id".to_owned(),
@@ -531,13 +534,45 @@ fn pending_paths(outbox_dir: &Path) -> io::Result<Vec<PathBuf>> {
 }
 
 fn read_pending(outbox_dir: &Path) -> io::Result<Vec<PendingEvent>> {
-    pending_paths(outbox_dir)?
-        .into_iter()
-        .map(|path| {
-            let bytes = fs::read(path)?;
-            serde_json::from_slice(&bytes).map_err(io::Error::other)
-        })
-        .collect()
+    let mut events = Vec::new();
+    for path in pending_paths(outbox_dir)? {
+        let parsed = (|| -> io::Result<PendingEvent> {
+            let bytes = fs::read(&path)?;
+            let pending: PendingEvent = serde_json::from_slice(&bytes)?;
+            posthog_event(&pending).map_err(io::Error::other)?;
+            if pending_path(outbox_dir, &pending) != path {
+                return Err(io::Error::other(
+                    "Analytics event filename does not match its ID",
+                ));
+            }
+            Ok(pending)
+        })();
+        match parsed {
+            Ok(pending) => events.push(pending),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => {
+                eprintln!("Skipping invalid analytics outbox entry: {error}");
+                if let Err(error) = fs::rename(&path, path.with_extension("invalid")) {
+                    eprintln!("Could not quarantine analytics outbox entry: {error}");
+                }
+            }
+        }
+    }
+    Ok(events)
+}
+
+fn analytics_environment(
+    channel: Option<&str>,
+    test_override: Option<&str>,
+) -> (&'static str, bool) {
+    let channel = match channel.map(str::trim) {
+        Some("production") => "production",
+        _ => "development",
+    };
+    let is_test = channel != "production"
+        || test_override
+            .is_some_and(|value| value.trim() == "1" || value.trim().eq_ignore_ascii_case("true"));
+    (channel, is_test)
 }
 
 fn now_ms() -> i64 {
@@ -558,6 +593,8 @@ mod tests {
         let state = AnalyticsState(Arc::new(AnalyticsInner {
             project_token: Some(project_token),
             host: DEFAULT_POSTHOG_HOST.to_owned(),
+            release_channel: "development",
+            is_test: true,
             installation_id: load_or_create_installation_id(&data_dir).unwrap(),
             session_id: Uuid::new_v4().to_string(),
             first_open_marker: data_dir.join("analytics-first-open-queued"),
@@ -583,6 +620,53 @@ mod tests {
             load_or_create_installation_id(&data_dir).unwrap(),
             state.0.installation_id
         );
+        fs::remove_dir_all(data_dir).unwrap();
+    }
+
+    #[test]
+    fn production_telemetry_requires_an_explicit_channel() {
+        for channel in [None, Some("development"), Some("qa"), Some("")] {
+            assert_eq!(analytics_environment(channel, None), ("development", true));
+            assert_eq!(
+                analytics_environment(channel, Some("false")),
+                ("development", true)
+            );
+        }
+        assert_eq!(
+            analytics_environment(Some("production"), None),
+            ("production", false)
+        );
+        for value in ["1", "true", "TRUE"] {
+            assert_eq!(
+                analytics_environment(Some("production"), Some(value)),
+                ("production", true)
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_outbox_entries_do_not_hide_healthy_events() {
+        let (state, data_dir) = test_state("test-only-not-a-project-key".to_owned());
+        state.queue_event(event("edr_app_opened", &[])).unwrap();
+        let expected = read_pending(&state.0.outbox_dir).unwrap()[0].id.clone();
+        let malformed = state.0.outbox_dir.join("000-malformed.json");
+        fs::write(&malformed, b"{truncated").unwrap();
+        let unreadable = state.0.outbox_dir.join("001-directory.json");
+        fs::create_dir(&unreadable).unwrap();
+        let mut invalid = read_pending(&state.0.outbox_dir).unwrap()[0].clone();
+        invalid.id = "invalid-uuid".to_owned();
+        persist_pending(&state.0.outbox_dir, &invalid).unwrap();
+        for _ in 0..2 {
+            let events = read_pending(&state.0.outbox_dir).unwrap();
+            assert_eq!(events.len(), 1);
+            assert_eq!(events[0].id, expected);
+        }
+        assert!(malformed.with_extension("invalid").exists());
+        assert!(unreadable.with_extension("invalid").exists());
+        assert!(pending_path(&state.0.outbox_dir, &invalid)
+            .with_extension("invalid")
+            .exists());
+        assert_eq!(pending_paths(&state.0.outbox_dir).unwrap().len(), 1);
         fs::remove_dir_all(data_dir).unwrap();
     }
 

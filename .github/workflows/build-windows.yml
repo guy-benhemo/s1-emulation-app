@@ -14,6 +14,7 @@ jobs:
     env:
       POSTHOG_PROJECT_TOKEN: phc_u397JhUZeJnPLC4qx3F3esj2VpF4giQt293W2ptnZuUG
       POSTHOG_HOST: https://us.i.posthog.com
+      EDR_RELEASE_CHANNEL: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
 
     steps:
       - uses: actions/checkout@v4
