@@ -5,6 +5,10 @@ import { getOutcome, GRADE_TONE, type Grade } from "../utils/verdict";
 import { getRecommendation } from "../data/recommendations";
 import { TARGET_HOST } from "../data/scenarios";
 import { saveReportPdf } from "../lib/savePdf";
+import {
+  ComparisonEntryPoint,
+  trackEvent,
+} from "../lib/analytics";
 import { useCountUp } from "../lib/useCountUp";
 import { listContainer, listItem } from "../lib/motion";
 import RailLayout from "./RailLayout";
@@ -14,8 +18,9 @@ import RecommendationCard from "./RecommendationCard";
 interface ResultsScreenProps {
   scenarios: Scenario[];
   runQueue: string[];
+  runId: string | null;
   onRunAgain: () => void;
-  onCompare: () => void;
+  onCompare: (entryPoint: ComparisonEntryPoint) => void;
 }
 
 function gradeFor(score: number): Grade {
@@ -101,6 +106,7 @@ function StatTile({
 export default function ResultsScreen({
   scenarios,
   runQueue,
+  runId,
   onCompare,
 }: ResultsScreenProps) {
   const ran = runQueue
@@ -115,6 +121,7 @@ export default function ResultsScreen({
   /* Attacks that never started say nothing about coverage, so they are kept
      out of the score rather than counted as blocked. */
   const tested = blockedCount + undetected.length;
+  const erroredCount = total - tested;
   const coverage = tested > 0 ? Math.round((blockedCount / tested) * 100) : 0;
 
   const animatedScore = useCountUp(coverage);
@@ -140,6 +147,19 @@ export default function ResultsScreen({
       grade,
       summary: `${headline} ${detail}`,
     });
+
+    if (runId) {
+      trackEvent("edr_report_exported", {
+        run_id: runId,
+        report_status: result.status,
+        scenario_count: total,
+        blocked_count: blockedCount,
+        undetected_count: undetected.length,
+        errored_count: erroredCount,
+        coverage_percent: coverage,
+        grade,
+      });
+    }
 
     if (result.status === "saved") {
       setSaveState("saved");
@@ -304,7 +324,7 @@ export default function ResultsScreen({
           </div>
 
           <button
-            onClick={onCompare}
+            onClick={() => onCompare("compare_guardz")}
             className="btn btn-primary shrink-0 gap-2 px-5 py-[11px] text-[16px] leading-5"
           >
             Learn more

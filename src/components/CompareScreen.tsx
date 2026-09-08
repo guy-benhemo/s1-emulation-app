@@ -2,15 +2,15 @@ import { motion } from "motion/react";
 import { Scenario } from "../types";
 import { getOutcome } from "../utils/verdict";
 import { isTauri } from "../lib/executor";
+import { trackEvent } from "../lib/analytics";
+import { DEMO_URL } from "../lib/links";
 import { EASE_OUT, fadeUp, listContainer, listItem } from "../lib/motion";
 import GridBackdrop from "./GridBackdrop";
-
-export const DEMO_URL =
-  "https://guardz.com/book-a-demo?utm_source=edr_attack_sim";
 
 interface CompareScreenProps {
   scenarios: Scenario[];
   runQueue: string[];
+  runId: string | null;
   onBack: () => void;
 }
 
@@ -96,6 +96,7 @@ interface Row {
 export default function CompareScreen({
   scenarios,
   runQueue,
+  runId,
   onBack,
 }: CompareScreenProps) {
   const ran = runQueue
@@ -104,7 +105,30 @@ export default function CompareScreen({
 
   const total = ran.length;
   const exposed = ran.filter((s) => getOutcome(s.status) === "executed");
+  const protectedCount = ran.filter(
+    (s) => getOutcome(s.status) === "protected",
+  ).length;
   const blockedCount = total - exposed.length;
+  const erroredCount = ran.filter(
+    (s) => getOutcome(s.status) === "errored",
+  ).length;
+  const tested = protectedCount + exposed.length;
+  const telemetryCoverage = tested > 0 ? Math.round((protectedCount / tested) * 100) : 0;
+
+  function handleDemo(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (runId) {
+      trackEvent("edr_demo_clicked", {
+        run_id: runId,
+        destination: "guardz_book_a_demo",
+        scenario_count: total,
+        blocked_count: protectedCount,
+        undetected_count: exposed.length,
+        errored_count: erroredCount,
+        coverage_percent: telemetryCoverage,
+      });
+    }
+    void openDemo(event);
+  }
   const coverage = total > 0 ? Math.round((blockedCount / total) * 100) : 0;
 
   // A tactic counts as covered only when the endpoint stopped every technique
@@ -301,7 +325,7 @@ export default function CompareScreen({
                 href={DEMO_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={openDemo}
+                onClick={handleDemo}
                 className="btn btn-primary h-14 w-50 text-[16px] leading-4"
               >
                 Book a demo
